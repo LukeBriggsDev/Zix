@@ -1,4 +1,5 @@
 const sbi = @import("sbi.zig");
+const common = @import("common.zig");
 
 const __stack_top = @extern([*]u8, .{
     .name = "__stack_top",
@@ -21,7 +22,8 @@ export fn kernel_main() void {
     while (i < bss_length) : (i += 1) __bss[i] = 0;
 
     // Print hello world
-    _ = sbi.put_str("\n\nHello World\n\n");
+    _ = sbi.putstr("\n\nHello World\n\n");
+    _ = common.printf("{d} + {d} = {d}", .{ 9, 10, 19 });
 
     while (true) {}
 }

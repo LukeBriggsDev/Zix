@@ -1,6 +1,9 @@
+// Helper methods for dealing with SBI
+const common = @import("common.zig");
+
 /// List of SBI error values as defined in the SBI spec:
 /// Chapter 3: Binary Encoding.
-const SBIError = enum(i32) {
+pub const SBIError = enum(i32) {
     SBI_SUCCESS = 0,
     SBI_ERR_FAILED = -1,
     SBI_ERR_NOT_SUPPORTED = -2,
@@ -53,10 +56,11 @@ fn sbi_call(
     };
 }
 
-/// Write a character to the screen.
+/// Write a character to the screen using SBI extension defined in SBI spec:
+/// 5.2. Extension: Console Putchar (EID #0x01).
 /// Takes a single u8 character as argument.
 /// Returns an SBIError struct containing the error code of the call.
-pub fn put_char(char: u8) SBIError {
+pub fn sbi_putchar(char: u8) SBIError {
     const ret = sbi_call(
         char,
         0,
@@ -74,9 +78,9 @@ pub fn put_char(char: u8) SBIError {
 /// Takes a slice of characters (u8) and prints them to the screen.
 /// Returns an SBIError.
 /// If a failure occurs, this is the error code of the first character that failed.
-pub fn put_str(string: []const u8) SBIError {
+pub fn putstr(string: []const u8) SBIError {
     for (string) |char| {
-        const err = put_char(char);
+        const err = sbi_putchar(char);
         if (err != SBIError.SBI_SUCCESS) {
             return err;
         }
