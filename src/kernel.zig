@@ -23,7 +23,9 @@ export fn kernel_main() void {
 
     // Print hello world
     _ = sbi.putstr("\n\nHello World\n\n");
-    _ = common.printf("{d} + {d} = {d}", .{ 9, 10, 19 });
+    _ = common.printf("{d} + {d} = {d}", .{ 9, 10, 19 }) catch {
+        _ = sbi.putstr("printf err");
+    };
 
     while (true) {}
 }
