@@ -1,3 +1,5 @@
+/// List of SBI error values as defined in the SBI spec:
+/// Chapter 3: Binary Encoding.
 const SBIError = enum(i32) {
     SBI_SUCCESS = 0,
     SBI_ERR_FAILED = -1,
@@ -11,11 +13,15 @@ const SBIError = enum(i32) {
     _,
 };
 
+/// Return type of SBI ecall
 const SBIret = struct {
     err: SBIError,
     val: isize,
 };
 
+/// Make an ecall to the SBI ti perform a function.
+/// Takes value of registers a0-a5, fid and eid as parameters.
+/// Returns an SBIret containing the return value and error code.
 fn sbi_call(
     arg0: isize,
     arg1: isize,
@@ -47,6 +53,9 @@ fn sbi_call(
     };
 }
 
+/// Write a character to the screen.
+/// Takes a single u8 character as argument.
+/// Returns an SBIError struct containing the error code of the call.
 pub fn put_char(char: u8) SBIError {
     const ret = sbi_call(
         char,
@@ -61,6 +70,10 @@ pub fn put_char(char: u8) SBIError {
     return ret.err;
 }
 
+/// Write a string to the screen.
+/// Takes a slice of characters (u8) and prints them to the screen.
+/// Returns an SBIError.
+/// If a failure occurs, this is the error code of the first character that failed.
 pub fn put_str(string: []const u8) SBIError {
     for (string) |char| {
         const err = put_char(char);
