@@ -16,7 +16,16 @@ const SBIret = struct {
     val: isize,
 };
 
-fn sbi_call(arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, fid: isize, eid: isize) SBIret {
+fn sbi_call(
+    arg0: isize,
+    arg1: isize,
+    arg2: isize,
+    arg3: isize,
+    arg4: isize,
+    arg5: isize,
+    fid: isize,
+    eid: isize,
+) SBIret {
     var err: isize = 0;
     var val: isize = 0;
     asm volatile ("ecall"
@@ -39,7 +48,16 @@ fn sbi_call(arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg
 }
 
 pub fn put_char(char: u8) SBIError {
-    const ret = sbi_call(char, 0, 0, 0, 0, 0, 0, 1);
+    const ret = sbi_call(
+        char,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+    );
     return ret.err;
 }
 
