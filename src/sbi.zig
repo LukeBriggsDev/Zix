@@ -78,7 +78,7 @@ pub fn sbi_putchar(char: u8) SBIErrorCode {
 /// Takes a slice of characters (u8) and prints them to the screen.
 /// Returns an SBIError.
 /// If a failure occurs, this is the error code of the first character that failed.
-pub fn putstr(string: []const u8) SBIErrorCode {
+pub fn sbi_putstr(string: []const u8) SBIErrorCode {
     for (string) |char| {
         const err = sbi_putchar(char);
         if (err != SBIErrorCode.SBI_SUCCESS) {
