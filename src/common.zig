@@ -3,7 +3,7 @@ const sbi = @import("sbi.zig");
 const std = @import("std");
 
 /// UARTDisplay struct to provide an interface for writing to the terminal
-const UARTDisplay = struct {
+pub const UARTDisplay = struct {
     /// Writer interface for using functions that require it
     const Writer = std.io.Writer(
         *UARTDisplay,
@@ -22,7 +22,7 @@ const UARTDisplay = struct {
     }
 
     /// Method to expose UARTDisplay's Writer interface
-    fn writer(self: *UARTDisplay) Writer {
+    pub fn writer(self: *UARTDisplay) Writer {
         return .{ .context = self };
     }
 };

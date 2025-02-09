@@ -1,10 +1,8 @@
-const sbi = @import("sbi.zig");
-const common = @import("common.zig");
 const std = @import("std");
 
-const __stack_top = @extern([*]u8, .{
-    .name = "__stack_top",
-});
+const sbi = @import("sbi.zig");
+const common = @import("common.zig");
+const debug = @import("debug.zig");
 
 const __bss = @extern([*]u8, .{
     .name = "__bss",
@@ -14,11 +12,36 @@ const __bss_end = @extern([*]u8, .{
     .name = "__bss_end",
 });
 
+const __stack_top = @extern([*]u8, .{
+    .name = "__bss_end",
+});
+
+var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
+
 pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?usize) noreturn {
     _ = stack_trace;
-    _ = ra;
-    _ = common.format_print("\n!!!!!!!!!!!!\nKERNEL PANIC\n!!!!!!!!!!!!\n", .{}) catch {};
-    _ = common.format_print("{s}\n", .{message}) catch {};
+    common.format_print("\n!!!!!!!!!!!!\nKERNEL PANIC\n!!!!!!!!!!!!\n", .{}) catch {};
+    common.format_print("panic: {s}\n", .{message}) catch {};
+
+    var debug_allocator = std.heap.FixedBufferAllocator.init(&debug_allocator_bytes);
+
+    var debug_info = debug.DebugInfo.init(debug_allocator.allocator(), .{}) catch |err| {
+        common.format_print("panic: debug info err = {}\n", .{err}) catch {};
+        hang();
+    };
+
+    defer debug_info.deinit();
+
+    var display = common.UARTDisplay{};
+
+    debug_info.printStackTrace(display.writer(), ra orelse @returnAddress(), @frameAddress()) catch |err| {
+        common.format_print("panic: stacktrace err = {}\n", .{err}) catch {};
+    };
+
+    hang();
+}
+
+fn hang() noreturn {
     while (true) {}
 }
 

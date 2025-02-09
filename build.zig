@@ -21,10 +21,20 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(kernel);
 
-    const qemu_args: []const []const u8 = &.{ "qemu-system-riscv64", "-machine", "virt", "-bios", "default", "-nographic", "-serial", "mon:stdio", "--no-reboot", "-kernel", "zig-out/bin/kernel.elf" };
+    // run qemu
+    const run_qemu = b.addSystemCommand(&[_][]const u8{"qemu-system-riscv64"});
+    run_qemu.addArgs(&.{
+        "-machine",   "virt",
+        "-cpu",       "rv64",
+        "-smp",       "1",
+        "-m",         "32M",
+        "-bios",      "default",
+        "-kernel",    b.pathJoin(&.{ b.install_path, "bin", "zix" }),
+        "-nographic",
+    });
 
-    const qemu_cmd = b.addSystemCommand(qemu_args);
+    run_qemu.step.dependOn(b.getInstallStep());
 
-    const run_step = b.step("run", "Run the application");
-    run_step.dependOn(&qemu_cmd.step);
+    const test_step = b.step("run", "Run stacktrace example");
+    test_step.dependOn(&run_qemu.step);
 }
