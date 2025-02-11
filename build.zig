@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     const tests = b.addTest(.{
         .root_source_file = b.path("src/kernel.zig"),
         .test_runner = .{
-            .path = b.path("src/test_kernel.zig"),
+            .path = b.path("src/testing.zig"),
             .mode = .simple,
         },
         .target = target,
