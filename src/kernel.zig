@@ -5,6 +5,7 @@ const sbi = @import("sbi.zig");
 const common = @import("common.zig");
 const debug = @import("debug.zig");
 const testing = @import("testing.zig");
+const riscv64 = @import("riscv64.zig");
 
 const __bss = @extern([*]u8, .{
     .name = "__bss",
@@ -55,6 +56,11 @@ export fn kernel_main() noreturn {
     var i: usize = 0;
     while (i < bss_length) : (i += 1) __bss[i] = 0;
 
+    // Register exception handler
+    riscv64.write_csr(riscv64.ControlStatusRegister.stvec, @intFromPtr(&riscv64.exception_entry));
+
+    asm volatile ("unimp");
+
     if (builtin.is_test) {
         testing.main();
     }
@@ -74,5 +80,3 @@ export fn boot() linksection(".text.boot") callconv(.Naked) noreturn {
         : [stack_top] "r" (__stack_top), // Pass the stack top address as %[stack_top]
     );
 }
-
-const expect = std.testing.expect;
