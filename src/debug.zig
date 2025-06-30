@@ -11,6 +11,10 @@ const source_files: []const []const u8 = &.{
     "kernel.zig",
     "common.zig",
     "sbi.zig",
+    "alloc.zig",
+    "riscv64.zig",
+    "stdx.zig",
+    "stdx/debug/Dwarf.zig",
 };
 
 pub const DebugInfo = @This();

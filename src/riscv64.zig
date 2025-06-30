@@ -162,6 +162,6 @@ export fn handle_trap(frame: *TrapFrame) noreturn {
     const scause = read_csr(ControlStatusRegister.scause);
     const stval = read_csr(ControlStatusRegister.stval);
     const sepc = read_csr(ControlStatusRegister.sepc);
-    common.format_print("Unexpected trap: scause = {x}, stval = {x}, sepc = {x}\n", .{ scause, stval, sepc }) catch {};
+    common.format_print("Unexpected trap: scause = {x}, stval = {x}, sepc = {x}\n", .{ scause, stval, sepc });
     while (true) {}
 }

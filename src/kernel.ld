@@ -8,7 +8,7 @@ SECTIONS {
         *(.text .text.*);
     }
 
-    .rodata : ALIGN(8) {
+    .rodata : ALIGN(4096) {
         *(.rodata .rodata.*);
 	.debug_info_start = .;
 	KEEP(*(.debug_info))
@@ -26,18 +26,22 @@ SECTIONS {
 	KEEP(*(.debug_ranges))
 	.debug_ranges_end = .;
     }
-
-    .data : ALIGN(8) {
+    .data : ALIGN(4096) {
         *(.data .data.*);
     }
 
-    .bss : ALIGN(8) {
+    .bss : ALIGN(4096) {
         __bss = .;
         *(.bss .bss.* .sbss .sbss.*);
         __bss_end = .;
     }
 
-    . = ALIGN(8);
+    . = ALIGN(4096);
     . += 128 * 1024; /* 128KB */
     __stack_top = .;
+
+	. = ALIGN(4096);
+	free_ram_start = .;
+	. += 64 * 1024 * 1024; /* 64MB */
+	free_ram_end = .;
 }

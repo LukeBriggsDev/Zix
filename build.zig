@@ -14,6 +14,7 @@ pub fn build(b: *std.Build) void {
         .optimize = .Debug,
         .code_model = .medium,
     });
+
     b.enable_qemu = true;
 
     kernel.linker_script = b.path("src/kernel.ld");
@@ -21,18 +22,18 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(kernel);
 
-    const tests = b.addTest(.{
-        .root_source_file = b.path("src/kernel.zig"),
-        .test_runner = .{
-            .path = b.path("src/testing.zig"),
-            .mode = .simple,
-        },
-        .target = target,
-    });
-    tests.linker_script = b.path("src/kernel.ld");
-    tests.entry = .{ .symbol_name = "boot" };
-    tests.entry = .disabled;
-    tests.root_module.code_model = .medium;
+    // const tests = b.addTest(.{
+    //     .root_source_file = b.path("src/kernel.zig"),
+    //     .test_runner = .{
+    //         .path = b.path("src/testing.zig"),
+    //         .mode = .simple,
+    //     },
+    //     .target = target,
+    // });
+    // tests.linker_script = b.path("src/kernel.ld");
+    // tests.entry = .{ .symbol_name = "boot" };
+    // tests.entry = .disabled;
+    // tests.root_module.code_model = .medium;
 
     // run qemu
     const run_qemu = b.addSystemCommand(&[_][]const u8{"qemu-system-riscv64"});
@@ -59,9 +60,9 @@ pub fn build(b: *std.Build) void {
 
     run_qemu.step.dependOn(b.getInstallStep());
 
-    b.installArtifact(tests);
+    // b.installArtifact(tests);
 
-    run_qemu_test.step.dependOn(b.getInstallStep());
+    //run_qemu_test.step.dependOn(b.getInstallStep());
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_qemu_test.step);

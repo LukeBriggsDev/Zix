@@ -13,10 +13,9 @@ pub const UARTDisplay = struct {
 
     /// Part of Writer, appends by directly putting characters to the screen
     fn appendWrite(_: *UARTDisplay, data: []const u8) PrintError!usize {
-        for (data) |char| {
-            putchar(char) catch {
-                return error.GENERIC_PRINT_ERROR;
-            };
+        const err = sbi.sbi_putstr(data);
+        if (err != sbi.SBIErrorCode.SBI_SUCCESS) {
+            return error.GENERIC_PRINT_ERROR;
         }
         return data.len;
     }
@@ -34,23 +33,23 @@ pub const PrintError = error{
 
 /// Write a character to the screen.
 /// Takes a single u8 character as argument.
-/// Returns an PrintError struct containing the error code of the call.
-pub fn putchar(char: u8) PrintError!void {
-    const err = sbi.sbi_putchar(char);
-    if (err != sbi.SBIErrorCode.SBI_SUCCESS) {
-        return PrintError.GENERIC_PRINT_ERROR;
-    }
+/// Silently returns on error
+pub fn putchar(char: u8) void {
+    _ = sbi.sbi_putchar(char);
+}
+
+/// Write a string to the screen.
+/// Takes a string as argument.
+/// Silently returns on error
+pub fn putstr(string: []const u8) void {
+    _ = sbi.sbi_putstr(string);
 }
 
 /// A formatted print function
-pub fn format_print(comptime fmt: []const u8, args: anytype) PrintError!void {
+/// Takes a format string `fmt` and `args`
+/// Silently returns on failure
+pub fn format_print(comptime fmt: []const u8, args: anytype) void {
     var display: UARTDisplay = UARTDisplay{};
 
-    return std.fmt.format(display.writer(), fmt, args);
-}
-
-/// A non-formatted print
-pub fn print(str: []const u8) PrintError!usize {
-    var display: UARTDisplay = UARTDisplay{};
-    return display.appendWrite(str);
+    return std.fmt.format(display.writer(), fmt, args) catch {};
 }
