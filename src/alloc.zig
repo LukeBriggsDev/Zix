@@ -27,6 +27,10 @@ inline fn get_heap_size() usize {
     return @intFromPtr(free_ram_end) - @intFromPtr(free_ram_start);
 }
 
+inline fn get_num_pages() usize {
+    return get_heap_size() / std.heap.pageSize();
+}
+
 /// Struct containing Page descriptor values
 const Page = packed struct {
     /// Is page taken?
@@ -46,9 +50,8 @@ fn align_val(val: usize, order: u6) usize {
 /// Initialize the heap metadata block
 pub fn init() void {
     std.log.debug("heap_size initialized: {d}", .{get_heap_size()});
-    const num_pages = get_heap_size() / std.heap.pageSize();
     const ptr: [*]Page = @ptrCast(free_ram_start);
-    for (0..num_pages) |i| {
+    for (0..get_num_pages()) |i| {
         ptr[i] = Page{ .taken = false, .last = false };
     }
 
@@ -61,14 +64,12 @@ pub fn alloc_page(pages: usize) std.mem.Allocator.Error![*]u8 {
     assert(pages > 0);
 
     // Create a page structure for each page on the heap
-    const num_pages = get_heap_size() / std.heap.pageSize();
-
-    std.log.debug("heap_size: {d}, num_pages: {d}", .{ get_heap_size(), num_pages });
+    std.log.debug("heap_size: {d}, num_pages: {d}", .{ get_heap_size(), get_num_pages() });
 
     var ptr: [*]Page = @ptrCast(free_ram_start);
 
     // Check beginning of heap to last possible page we can start allocating from
-    for (0..num_pages - pages) |i| {
+    for (0..get_num_pages() - pages) |i| {
         var found = false;
 
         // Check to see if the page is free, if so we have a possible candidate
@@ -145,7 +146,7 @@ pub fn zero_alloc_page(pages: usize) std.mem.Allocator.Error![*]u8 {
 
 /// Print table of page allocations
 pub fn print_page_allocations() void {
-    const num_pages = get_heap_size() / std.heap.pageSize();
+    const num_pages = get_num_pages();
     var beg: [*]Page = @ptrCast(free_ram_start);
     const end = beg + num_pages;
     const alloc_beg = 0;
@@ -184,9 +185,8 @@ pub fn print_page_allocations() void {
 
 /// Print a visual representation of memory
 pub fn print_page_graphic() void {
-    const num_pages = get_heap_size() / std.heap.pageSize();
     var beg: [*]Page = @ptrCast(free_ram_start);
-    const end = beg + num_pages;
+    const end = beg + get_num_pages();
 
     var num: usize = 0;
     while (@intFromPtr(beg) < @intFromPtr(end)) {
@@ -207,4 +207,78 @@ pub fn print_page_graphic() void {
         beg += 1;
     }
     common.putchar('\n');
+}
+
+// Tests
+
+test "Expect init to zero" {
+    // Ensure Init initialises all memory to zero
+    init();
+    const ptr: [*]Page = @ptrCast(free_ram_start);
+    for (0..get_num_pages()) |i| {
+        try std.testing.expect(!ptr[i].taken);
+        try std.testing.expect(!ptr[i].last);
+    }
+}
+
+test "Expect successful allocation" {
+    // Initialise and allocate page
+    init();
+    const page = try alloc_page(1);
+
+    // Check a single page has been allocated
+    const ptr: [*]Page = @ptrCast(free_ram_start);
+    try std.testing.expect(ptr[0].taken);
+    try std.testing.expect(ptr[0].last);
+
+    // Check no other pages have been allocated
+    for (1..get_num_pages()) |i| {
+        try std.testing.expect(!ptr[i].taken);
+        try std.testing.expect(!ptr[i].last);
+    }
+
+    // Free page
+    free_page(page);
+
+    // Check all pages unallocated
+    for (0..get_num_pages()) |i| {
+        try std.testing.expect(!ptr[i].taken);
+        try std.testing.expect(!ptr[i].last);
+    }
+
+    // Allocate 2 pages
+    const double_page = try alloc_page(2);
+    // allocate 3 pages
+    const triple_page = try alloc_page(3);
+    // allocate 1 page
+    const buffer_page = try alloc_page(1);
+    // free triple page
+    free_page(triple_page);
+    // Allocate 4 pages
+    const quad_page = try alloc_page(4);
+
+    // Quad page should have been placed after buffer page
+    try std.testing.expect(ptr[0].taken);
+    try std.testing.expect(!ptr[0].last);
+    try std.testing.expect(ptr[1].taken);
+    try std.testing.expect(ptr[1].last);
+
+    // Unallocated gap
+    for (2..5) |i| {
+        try std.testing.expect(!ptr[i].taken);
+    }
+
+    // Buffer page
+    try std.testing.expect(ptr[5].taken);
+    try std.testing.expect(ptr[5].last);
+
+    // Quad page
+    for (6..10) |i| {
+        try std.testing.expect(ptr[i].taken);
+    }
+
+    // Free pages
+    free_page(double_page);
+    free_page(buffer_page);
+    free_page(quad_page);
 }

@@ -72,33 +72,19 @@ export fn kernel_main() noreturn {
     var i: usize = 0;
     while (i < bss_length) : (i += 1) __bss[i] = 0;
 
-    alloc.init();
-    std.log.debug("{*}", .{alloc.get_alloc_start()});
-    const one_page = alloc.alloc_page(1) catch {
-        unreachable;
-    };
-    const ten_page = alloc.alloc_page(10) catch {
-        unreachable;
-    };
-    alloc.print_page_allocations();
-
-    std.log.info("De allocating one page {*}", .{one_page});
-    alloc.free_page(one_page);
-    std.log.info("De allocating ten pages {*}", .{ten_page});
-
-    alloc.free_page(ten_page);
-    alloc.print_page_allocations();
-    // Register exception handler
-    riscv64.write_csr(riscv64.ControlStatusRegister.stvec, @intFromPtr(&riscv64.exception_entry));
-
-    asm volatile ("unimp");
+    // Run Tests
 
     if (builtin.is_test) {
         testing.main();
     }
 
-    // Print hello world
-    common.putstr("\n\nHello World\n\n");
+    // Initialize Allocator
+    alloc.init();
+
+    // Register exception handler
+    riscv64.write_csr(riscv64.ControlStatusRegister.stvec, @intFromPtr(&riscv64.exception_entry));
+
+    asm volatile ("unimp");
 
     hang();
 }
