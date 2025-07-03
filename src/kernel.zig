@@ -7,7 +7,7 @@ const common = @import("common.zig");
 const debug = @import("debug.zig");
 const testing = @import("testing.zig");
 const riscv64 = @import("riscv64.zig");
-const alloc = @import("alloc.zig");
+const mem = @import("mem.zig");
 
 pub const std_options: std.Options = .{
     .page_size_min = 4096,
@@ -79,7 +79,16 @@ export fn kernel_main() noreturn {
     }
 
     // Initialize Allocator
-    alloc.init();
+    mem.initKernelPageAllocator();
+
+    const allocator = mem.kernel_page_allocator;
+
+    const my_arr = allocator.alloc(u8, 5) catch {
+        unreachable;
+    };
+
+    my_arr[0] = 1;
+    my_arr[6] = 4;
 
     // Register exception handler
     riscv64.write_csr(riscv64.ControlStatusRegister.stvec, @intFromPtr(&riscv64.exception_entry));

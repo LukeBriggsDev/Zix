@@ -19,7 +19,7 @@ pub fn logFn(comptime level: std.log.Level, comptime scope: @Type(.enum_literal)
 }
 
 fn test_loader() void {
-    _ = @import("alloc.zig");
+    _ = @import("mem/KernelPageAllocator.zig");
 }
 
 pub fn main() noreturn {
