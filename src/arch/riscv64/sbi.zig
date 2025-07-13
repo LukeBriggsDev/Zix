@@ -1,5 +1,4 @@
-// Helper methods for dealing with SBI
-const common = @import("common.zig");
+//! Helper methods for dealing with SBI
 
 /// List of SBI error values as defined in the SBI spec:
 /// Chapter 3: Binary Encoding.
@@ -86,4 +85,19 @@ pub fn sbi_putstr(string: []const u8) SBIErrorCode {
         }
     }
     return SBIErrorCode.SBI_SUCCESS;
+}
+
+/// Shutdown
+pub fn sbi_shutdown() noreturn {
+    _ = sbi_call(
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        8,
+    );
+    unreachable;
 }

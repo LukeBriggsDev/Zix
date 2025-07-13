@@ -1,8 +1,18 @@
+//! Defines main test boot stub and method as well as the test runner
+
 const std = @import("std");
 const builtin = @import("builtin");
-const common = @import("common.zig");
+const config = @import("config");
+
+// Import dependencies as root when they are the current module
+const io = @import("io");
+const arch = @import("arch");
+
 const log = std.log;
-var display = common.UARTDisplay{};
+
+const __stack_top = @extern([*]u8, .{
+    .name = "__bss_end",
+});
 
 pub const std_options: std.Options = .{
     .page_size_min = 4096,
@@ -12,19 +22,16 @@ pub const std_options: std.Options = .{
 };
 
 pub fn logFn(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
-    const prefix = "[" ++ comptime level.asText() ++ "] " ++ @tagName(scope) ++ " ";
+    const prefix = "[" ++ comptime level.asText() ++ "] " ++ "<" ++ @tagName(scope) ++ "> ";
 
     // Print message
-    common.format_print(prefix ++ format ++ "\n", args);
+    std.fmt.format(io.TTY.writer, prefix ++ format ++ "\n", args) catch {};
 }
 
-fn test_loader() void {
-    _ = @import("mem/KernelPageAllocator.zig");
-}
-
-pub fn main() noreturn {
+export fn tmain() noreturn {
+    // Init architecture
+    arch.internals.init();
     log.info("Starting tests...", .{});
-    test_loader();
     const test_functions = builtin.test_functions;
     log.info("Found {} tests", .{test_functions.len});
     for (test_functions) |t| {
@@ -35,7 +42,16 @@ pub fn main() noreturn {
         log.info("{s} passed", .{t.name});
     }
     log.info("Finished tests.", .{});
-    while (true) {}
+    arch.internals.shutdown();
+}
+
+export fn boot() linksection(".text.boot") callconv(.Naked) noreturn {
+    asm volatile (
+        \\mv sp, %[stack_top] // Set the stack pointer
+        \\j tmain
+        :
+        : [stack_top] "r" (__stack_top), // Pass the stack top address as %[stack_top]
+    );
 }
 
 test {

@@ -343,3 +343,7 @@ test "Resize larger" {
     try std.testing.expect(ptr[7].taken);
     try std.testing.expect(ptr[7].last);
 }
+
+test {
+    std.testing.refAllDecls(@This());
+}

@@ -3,19 +3,20 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const common = @import("common.zig");
 const stdx = @import("stdx.zig");
 
 const source_files: []const []const u8 = &.{
+    "arch/arch.zig",
+    "arch/riscv64/arch.zig",
+    "arch/riscv64/csr.zig",
+    "arch/riscv64/sbi.zig",
+    "arch/riscv64/tty.zig",
     "debug.zig",
+    "io/io.zig",
+    "io/tty.zig",
     "kernel.zig",
-    "common.zig",
-    "sbi.zig",
-    "mem.zig",
     "mem/KernelPageAllocator.zig",
-    "riscv64.zig",
-    "stdx.zig",
-    "stdx/debug/Dwarf.zig",
+    "mem/mem.zig",
 };
 
 pub const DebugInfo = @This();

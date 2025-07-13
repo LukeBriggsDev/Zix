@@ -1,12 +1,34 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
+    var DbgAlloc = std.heap.DebugAllocator(.{}){};
+    const allocator = DbgAlloc.allocator();
+    b.enable_qemu = true;
+
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .riscv64,
         .os_tag = .freestanding,
         .abi = .none,
     });
 
+    // Modules
+    const module_arch = b.addModule("arch", .{
+        .root_source_file = b.path("src/arch/arch.zig"),
+        .target = target,
+    });
+
+    const module_io = b.addModule("io", .{
+        .root_source_file = b.path("src/io/io.zig"),
+        .target = target,
+    });
+    module_io.addImport("arch", module_arch);
+
+    _ = b.addModule("mem", .{
+        .root_source_file = b.path("src/mem/mem.zig"),
+        .target = target,
+    });
+
+    // Kernel
     const kernel = b.addExecutable(.{
         .name = "zix",
         .root_source_file = b.path("src/kernel.zig"),
@@ -14,28 +36,19 @@ pub fn build(b: *std.Build) void {
         .optimize = .Debug,
         .code_model = .medium,
     });
-
-    b.enable_qemu = true;
-
     kernel.linker_script = b.path("src/kernel.ld");
     kernel.entry = .{ .symbol_name = "boot" };
 
-    b.installArtifact(kernel);
+    // Add kernel imports
+    var mod_iter = b.modules.iterator();
+    while (mod_iter.next()) |module| {
+        kernel.root_module.addImport(module.key_ptr.*, module.value_ptr.*);
+    }
 
-    const tests = b.addTest(.{
-        .root_source_file = b.path("src/kernel.zig"),
-        .test_runner = .{
-            .path = b.path("src/testing.zig"),
-            .mode = .simple,
-        },
-        .target = target,
-    });
-    tests.linker_script = b.path("src/kernel.ld");
-    tests.entry = .{ .symbol_name = "boot" };
-    tests.entry = .disabled;
-    tests.root_module.code_model = .medium;
+    // Install kernel
+    const kernel_install_step = b.addInstallArtifact(kernel, .{});
 
-    // run qemu
+    // Kernel run step
     const run_qemu = b.addSystemCommand(&[_][]const u8{"qemu-system-riscv64"});
     run_qemu.addArgs(&.{
         "-machine",   "virt",
@@ -46,27 +59,72 @@ pub fn build(b: *std.Build) void {
         "-kernel",    b.pathJoin(&.{ b.install_path, "bin", "zix" }),
         "-nographic",
     });
-
-    const run_qemu_test = b.addSystemCommand(&[_][]const u8{"qemu-system-riscv64"});
-    run_qemu_test.addArgs(&.{
-        "-machine",   "virt",
-        "-cpu",       "rv64",
-        "-smp",       "1",
-        "-m",         "32M",
-        "-bios",      "default",
-        "-kernel",    b.pathJoin(&.{ b.install_path, "bin", "test" }),
-        "-nographic",
-    });
-
-    run_qemu.step.dependOn(b.getInstallStep());
-
-    b.installArtifact(tests);
-
-    run_qemu_test.step.dependOn(b.getInstallStep());
-
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_qemu_test.step);
+    run_qemu.step.dependOn(&kernel_install_step.step);
 
     const run_step = b.step("run", "Run stacktrace example");
     run_step.dependOn(&run_qemu.step);
+
+    // Tests
+    const test_step = b.step("test", "Run tests");
+    mod_iter.reset();
+    while (mod_iter.next()) |module| {
+        const test_mod = b.addTest(.{
+            .name = module.key_ptr.*,
+            .root_module = module.value_ptr.*,
+            .test_runner = .{
+                .path = b.path("src/testing.zig"),
+                .mode = .simple,
+            },
+            .target = target,
+        });
+        const options = b.addOptions();
+        options.addOption([]const u8, "module_name", module.key_ptr.*);
+        test_mod.linker_script = b.path("src/kernel.ld");
+        test_mod.entry = .{ .symbol_name = "boot" };
+        test_mod.entry = .disabled;
+        test_mod.root_module.code_model = .medium;
+        test_mod.root_module.addOptions("config", options);
+
+        // Arch module is a requirement for testing
+        test_mod.root_module.addImport("arch", module_arch);
+
+        // Io module is a requirement for testing
+        test_mod.root_module.addImport("io", module_io);
+
+        // Add install step
+        const run_qemu_test = b.addSystemCommand(&[_][]const u8{"qemu-system-riscv64"});
+        run_qemu_test.addArgs(&.{
+            "-machine",   "virt",
+            "-cpu",       "rv64",
+            "-smp",       "1",
+            "-m",         "32M",
+            "-bios",      "default",
+            "-kernel",    b.pathJoin(&.{ b.install_path, "test", "bin", module.key_ptr.* }),
+            "-nographic",
+        });
+
+        const test_log = std.fmt.allocPrint(
+            allocator,
+            "test/output/test-{s}.log",
+            .{module.key_ptr.*},
+        ) catch {
+            unreachable;
+        };
+        defer allocator.free(test_log);
+        const write_stdout_step = b.addInstallFile(
+            run_qemu_test.captureStdOut(),
+            test_log,
+        );
+
+        const install_test = b.addInstallArtifact(
+            test_mod,
+            .{ .dest_dir = .{
+                .override = .{ .custom = "test/bin" },
+            } },
+        );
+
+        test_step.dependOn(&write_stdout_step.step);
+        write_stdout_step.step.dependOn(&run_qemu_test.step);
+        run_qemu_test.step.dependOn(&install_test.step);
+    }
 }

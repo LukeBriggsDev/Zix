@@ -1,13 +1,11 @@
 const std = @import("std");
 
 const builtin = @import("builtin");
-
-const sbi = @import("sbi.zig");
-const common = @import("common.zig");
+const arch = @import("arch").internals;
+const io = @import("io");
 const debug = @import("debug.zig");
+pub const mem = @import("mem");
 const testing = @import("testing.zig");
-const riscv64 = @import("riscv64.zig");
-const mem = @import("mem.zig");
 
 pub const std_options: std.Options = .{
     .page_size_min = 4096,
@@ -17,10 +15,10 @@ pub const std_options: std.Options = .{
 };
 
 pub fn logFn(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
-    const prefix = "[" ++ comptime level.asText() ++ "] " ++ @tagName(scope) ++ " ";
+    const prefix = "[" ++ comptime level.asText() ++ "] " ++ "<" ++ @tagName(scope) ++ "> ";
 
     // Print message
-    common.format_print(prefix ++ format ++ "\n", args);
+    std.fmt.format(io.TTY.writer, prefix ++ format ++ "\n", args) catch {};
 }
 
 const __bss = @extern([*]u8, .{
@@ -34,8 +32,6 @@ const __bss_end = @extern([*]u8, .{
 const __stack_top = @extern([*]u8, .{
     .name = "__bss_end",
 });
-
-var display = common.UARTDisplay{};
 
 var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
 
@@ -53,7 +49,7 @@ pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?us
 
     defer debug_info.deinit();
 
-    debug_info.printStackTrace(display.writer(), ra orelse @returnAddress(), @frameAddress()) catch |err| {
+    debug_info.printStackTrace(io.TTY.writer, ra orelse @returnAddress(), @frameAddress()) catch |err| {
         std.log.err("panic: stacktrace err = {}", .{err});
     };
 
@@ -65,18 +61,15 @@ fn hang() noreturn {
 }
 
 /// Kernel main
-export fn kernel_main() noreturn {
+export fn kmain() noreturn {
 
     // Zero out bss
     const bss_length: usize = @intFromPtr(__bss_end) - @intFromPtr(__bss);
     var i: usize = 0;
     while (i < bss_length) : (i += 1) __bss[i] = 0;
 
-    // Run Tests
-
-    if (builtin.is_test) {
-        testing.main();
-    }
+    // Initialize architecture
+    arch.init();
 
     // Initialize Allocator
     mem.initKernelPageAllocator();
@@ -88,21 +81,15 @@ export fn kernel_main() noreturn {
     };
 
     my_arr[0] = 1;
-    my_arr[6] = 4;
 
-    // Register exception handler
-    riscv64.write_csr(riscv64.ControlStatusRegister.stvec, @intFromPtr(&riscv64.exception_entry));
-
-    asm volatile ("unimp");
-
-    hang();
+    arch.shutdown();
 }
 
 /// Main entry point for the kernel from the SBI
 export fn boot() linksection(".text.boot") callconv(.Naked) noreturn {
     asm volatile (
         \\mv sp, %[stack_top] // Set the stack pointer
-        \\j kernel_main
+        \\j kmain
         :
         : [stack_top] "r" (__stack_top), // Pass the stack top address as %[stack_top]
     );

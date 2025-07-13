@@ -1,7 +1,7 @@
+//! Methods relating to Control Status Registers
 const std = @import("std");
-const common = @import("common.zig");
 
-pub const ControlStatusRegister = enum {
+const ControlStatusRegister = enum {
     sstatus,
     sedeleg,
     sideleg,
@@ -16,7 +16,8 @@ pub const ControlStatusRegister = enum {
     satp,
 };
 
-pub fn write_csr(comptime reg: ControlStatusRegister, value: usize) void {
+/// Write to a control status register with a value
+fn write_csr(comptime reg: ControlStatusRegister, value: usize) void {
     const asm_str = std.fmt.comptimePrint("csrw {s}, %[value]", .{@tagName(reg)});
     asm volatile (asm_str
         :
@@ -24,7 +25,8 @@ pub fn write_csr(comptime reg: ControlStatusRegister, value: usize) void {
     );
 }
 
-pub fn read_csr(comptime reg: ControlStatusRegister) usize {
+/// Read a value from a control status register
+fn read_csr(comptime reg: ControlStatusRegister) usize {
     var val: usize = undefined;
     const asm_str = std.fmt.comptimePrint("csrr %[val], {s}", .{@tagName(reg)});
     asm volatile (asm_str
@@ -69,7 +71,7 @@ const TrapFrame = packed struct {
 
 /// Exception entry
 /// Store all the registers, handle trap, then load back the registers
-pub fn exception_entry() align(8) callconv(.Naked) void {
+fn exception_entry() align(8) callconv(.Naked) void {
     asm volatile (
     // Store sp in scratch register
         \\csrw sscratch, sp
@@ -157,11 +159,17 @@ pub fn exception_entry() align(8) callconv(.Naked) void {
     );
 }
 
+/// Trap handler
 export fn handle_trap(frame: *TrapFrame) noreturn {
     _ = frame;
     const scause = read_csr(ControlStatusRegister.scause);
     const stval = read_csr(ControlStatusRegister.stval);
     const sepc = read_csr(ControlStatusRegister.sepc);
-    common.format_print("Unexpected trap: scause = {x}, stval = {x}, sepc = {x}\n", .{ scause, stval, sepc });
+    std.log.err("Unexpected trap: scause = {x}, stval = {x}, sepc = {x}\n", .{ scause, stval, sepc });
     while (true) {}
+}
+
+/// Initialize csr exception handler
+pub fn init() void {
+    write_csr(ControlStatusRegister.stvec, @intFromPtr(&exception_entry));
 }
