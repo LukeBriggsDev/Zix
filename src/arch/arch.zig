@@ -10,6 +10,10 @@ pub const Arch = struct {
     init: *const fn () void,
     /// Shutdown method
     shutdown: *const fn () noreturn,
+    /// Number of callee saved registers
+    num_callee_saved_regs: usize,
+    /// Switch context between processes
+    switch_context: *const fn (prev_sp: usize, next_sp: usize) callconv(.C) void,
 };
 
 /// Instance containing the Arch methods of the current architecture

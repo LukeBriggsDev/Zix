@@ -30,7 +30,7 @@ inline fn get_alloc_start() [*]u8 {
     const num_pages = get_heap_size() / std.heap.pageSize();
     return @ptrFromInt(std.mem.Alignment.forward(
         .fromByteUnits(std.heap.pageSize()),
-        @intFromPtr(free_ram_start) + num_pages + @bitSizeOf(Page),
+        @intFromPtr(free_ram_start) + (num_pages * @sizeOf(Page)),
     ));
 }
 
@@ -88,6 +88,7 @@ pub fn init() void {
 /// Allocate `pages` number of pages.
 /// Returns either a pointer to the allocated pages or an allocator Error.
 fn alloc_pages(n: usize) ?[*]u8 {
+    std.log.info("Allocating {} pages", .{n});
     var ptr: [*]Page = @ptrCast(free_ram_start);
 
     // Check beginning of heap to last possible page we can start allocating from
@@ -109,13 +110,19 @@ fn alloc_pages(n: usize) ?[*]u8 {
 
         // Mark as taken
         if (found) {
+            std.log.info("Found free page {}", .{i});
             for (i..i + n - 1) |j| {
+                std.log.info("Claiming page {} {*}", .{ j, &ptr[j] });
                 ptr[j].taken = true;
             }
+            std.log.info("Claiming page {}, {*}", .{ i + n - 1, &ptr[i + n - 1] });
             ptr[i + n - 1] = Page{ .taken = true, .last = true };
             ptr = @ptrCast(free_ram_start + std.heap.pageSize() * i);
             std.log.debug("alloc_start: {*}", .{get_alloc_start()});
-            return @ptrFromInt(@intFromPtr(get_alloc_start()) + std.heap.pageSize() * i);
+
+            const ret: [*]u8 = @ptrFromInt(@intFromPtr(get_alloc_start()) + std.heap.pageSize() * i);
+            std.log.info("Returned ptr: {*}", .{ret});
+            return ret;
         }
     }
 
@@ -123,13 +130,14 @@ fn alloc_pages(n: usize) ?[*]u8 {
     return null;
 }
 
-/// Allocate enough pages to hold `n` bytes
+/// Allocate enough pages to hold too few operands for instruction`n` bytes
 ///
 /// No alignment parameter is necessary as zig specifies alignment cannot be more then the page size (<https://github.com/ziglang/zig/blob/a03ab9ee01129913af526a38b688313ccd83dca2/lib/std/mem/Allocator.zig#L218>)
 /// A return address is also not required.
 /// Returns either a pointer to the allocated pages or an allocator Error.
-fn alloc(_: *anyopaque, n: usize, _: std.mem.Alignment, _: usize) ?[*]u8 {
+fn alloc(_: *anyopaque, n: usize, alignment: std.mem.Alignment, _: usize) ?[*]u8 {
     // Allocate pages
+    std.log.info("Alignment: {}", .{alignment});
     return alloc_pages(bytes_to_pages(n));
 }
 

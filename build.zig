@@ -23,10 +23,18 @@ pub fn build(b: *std.Build) void {
     });
     module_io.addImport("arch", module_arch);
 
-    _ = b.addModule("mem", .{
+    const module_mem = b.addModule("mem", .{
         .root_source_file = b.path("src/mem/mem.zig"),
         .target = target,
     });
+
+    const module_proc = b.addModule("proc", .{
+        .root_source_file = b.path("src/proc/process.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+    module_proc.addImport("arch", module_arch);
+    module_proc.addImport("mem", module_mem);
 
     // Kernel
     const kernel = b.addExecutable(.{
@@ -97,7 +105,7 @@ pub fn build(b: *std.Build) void {
             "-machine",   "virt",
             "-cpu",       "rv64",
             "-smp",       "1",
-            "-m",         "32M",
+            "-m",         "128M",
             "-bios",      "default",
             "-kernel",    b.pathJoin(&.{ b.install_path, "test", "bin", module.key_ptr.* }),
             "-nographic",

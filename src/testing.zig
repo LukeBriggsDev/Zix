@@ -3,6 +3,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const config = @import("config");
+const debug = @import("debug.zig");
 
 // Import dependencies as root when they are the current module
 const io = @import("io");
@@ -21,11 +22,34 @@ pub const std_options: std.Options = .{
     .logFn = logFn,
 };
 
+var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
+
 pub fn logFn(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
     const prefix = "[" ++ comptime level.asText() ++ "] " ++ "<" ++ @tagName(scope) ++ "> ";
 
     // Print message
     std.fmt.format(io.TTY.writer, prefix ++ format ++ "\n", args) catch {};
+}
+
+pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?usize) noreturn {
+    _ = stack_trace;
+    std.log.err("\n!!!!!!!!!!!!\nKERNEL PANIC\n!!!!!!!!!!!!", .{});
+    std.log.err("panic: {s}\n", .{message});
+
+    var debug_allocator = std.heap.FixedBufferAllocator.init(&debug_allocator_bytes);
+
+    var debug_info = debug.DebugInfo.init(debug_allocator.allocator(), .{}) catch |err| {
+        std.log.err("panic: debug info err = {}", .{err});
+        while (true) {}
+    };
+
+    defer debug_info.deinit();
+
+    debug_info.printStackTrace(io.TTY.writer, ra orelse @returnAddress(), @frameAddress()) catch |err| {
+        std.log.err("panic: stacktrace err = {}", .{err});
+    };
+
+    while (true) {}
 }
 
 export fn tmain() noreturn {
