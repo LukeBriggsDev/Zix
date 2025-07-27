@@ -18,7 +18,7 @@ const __stack_top = @extern([*]u8, .{
 pub const std_options: std.Options = .{
     .page_size_min = 4096,
     .page_size_max = 4 * 1024,
-    .log_level = .info,
+    .log_level = .debug,
     .logFn = logFn,
 };
 

@@ -1,8 +1,19 @@
-pub const num_callee_saved_regs = 12;
+pub const num_callee_saved_regs = 13;
+
+/// A wrapper function to call `riscv_switch_context` via naked calling convention with parameters.
+/// Stack corruption occurs without this an context switching fails.
+pub fn switch_context(prev_sp: **usize, next_sp: **usize) void {
+    asm volatile (
+        \\call riscv_switch_context
+        :
+        : [prev_sp] "{a0}" (prev_sp),
+          [next_sp] "{a1}" (next_sp),
+    );
+}
 
 /// Switch context by pushing registers to the stack
 /// then popping them off the next process's stack
-pub fn switch_context(prev_sp: usize, next_sp: usize) callconv(.C) void {
+export fn riscv_switch_context() callconv(.Naked) void {
     asm volatile (
     // Save callee-saved registers onto the current process's stack.
     // Move stack to store contents of the 12 callee registers + ra (8 bytes each)
@@ -22,8 +33,8 @@ pub fn switch_context(prev_sp: usize, next_sp: usize) callconv(.C) void {
         \\sd s11, 12 * 8(sp)
 
         // Switch the stack pointer
-        \\sd sp, (%[prev_sp])
-        \\ld sp, (%[next_sp])
+        \\sd sp, (a0)
+        \\ld sp, (a1)
 
         // Restore callee saved registers from the next process's stack
         \\ld ra, 0 * 8(sp)
@@ -42,8 +53,5 @@ pub fn switch_context(prev_sp: usize, next_sp: usize) callconv(.C) void {
         // Pop the registers from the stack
         \\addi sp, sp, 13 * 8
         \\ret
-        :
-        : [prev_sp] "r" (prev_sp),
-          [next_sp] "r" (next_sp),
     );
 }

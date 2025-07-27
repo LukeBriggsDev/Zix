@@ -73,8 +73,8 @@ const TrapFrame = packed struct {
 /// Store all the registers, handle trap, then load back the registers
 fn exception_entry() align(8) callconv(.Naked) void {
     asm volatile (
-    // Store sp in scratch register
-        \\csrw sscratch, sp
+    // Retrieve the kernel stack of the running process from the stack
+        \\csrrw sp, sscratch, sp
         // Move stack to store contents of 31 registers (8 bytes each)
         \\addi sp, sp, -8 * 31
         // Load all registers
@@ -110,10 +110,15 @@ fn exception_entry() align(8) callconv(.Naked) void {
         \\sd x30, 8 * 29(sp)
         \\sd x31, 8 * 30(sp)
         // Deal with sp
-        // Read initial sp into func arg 0
+        // Retrieve and save the stack pointer at time of exception
         \\csrr a0, sscratch
         // Store sp on stack
-        \\sd a0, 8 * 31(sp) 
+        \\sd a0, 8 * 31(sp)
+
+        // Reset the kernel stack
+        \\addi a0, sp, 8 * 32
+        \\csrw sscratch, a0
+
         // Call handler
         // Move stack pointer to first argument
         \\mv a0, sp
