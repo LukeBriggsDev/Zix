@@ -4,6 +4,15 @@ const builtin = @import("builtin");
 const arch = @import("arch").internals;
 const mem = @import("mem");
 
+const kernel_base = @extern([*]u8, .{
+    .name = "kernel_base",
+});
+
+const free_ram_end = @extern([*]u8, .{
+    .name = "free_ram_end",
+});
+
+const satp_sv39 = 8 << 60;
 const stack_size = 8192;
 
 const ProcessNode = std.DoublyLinkedList.Node;
@@ -38,9 +47,13 @@ fn yield() void {
 
     // Store pointer to bottom of kernel stack
     asm volatile (
+        \\sfence.vma
+        \\csrw satp, %[satp]
+        \\sfence.vma
         \\csrw sscratch, %[sscratch]
         :
-        : [sscratch] "r" (@intFromPtr(&next_proc.stack) + next_proc.stack.len),
+        : [satp] "r" (satp_sv39 | (@intFromPtr(processFromNode(next).page_table.ptr) / std.heap.pageSize())),
+          [sscratch] "r" (@intFromPtr(&next_proc.stack) + next_proc.stack.len),
     );
 
     const prev_node: *ProcessNode = current_process;
@@ -56,6 +69,7 @@ const Process = struct {
     id: usize,
     state: ProcessState,
     stack_pointer: *usize,
+    page_table: []usize,
     stack: [stack_size]u8 align(@sizeOf(usize)),
 
     pub fn print_stack_regs(self: *Process) void {
@@ -71,10 +85,18 @@ const Process = struct {
     /// Initialize a `Process`, providing it's fields and adding it to the process list.
     pub fn init(allocator: std.mem.Allocator, program_counter: *const anyopaque) !*ProcessNode {
         const process = try allocator.create(Process);
+
+        const page_table = try allocator.alloc(usize, std.heap.pageSize() / @sizeOf(usize));
+
+        var paddr: usize = @intFromPtr(kernel_base);
+        while (paddr < @intFromPtr(free_ram_end)) : (paddr += std.heap.pageSize()) {
+            arch.map_page(allocator, page_table, paddr, paddr, 0b1110);
+        }
         process.* = .{
             .id = proc_list.len(),
             .state = .runnable,
             .stack_pointer = undefined,
+            .page_table = page_table,
             .stack = std.mem.zeroes([stack_size]u8),
         };
 

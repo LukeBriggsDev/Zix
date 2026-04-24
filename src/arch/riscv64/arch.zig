@@ -5,6 +5,7 @@ const csr = @import("csr.zig");
 const Arch = @import("../arch.zig").Arch;
 const sbi = @import("sbi.zig");
 const process = @import("process.zig");
+const paging = @import("paging.zig");
 
 var tty = RV64TTY{};
 
@@ -16,6 +17,7 @@ pub const arch = Arch{
     .num_callee_saved_regs = process.num_callee_saved_regs,
     .switch_context = process.switch_context,
     .process_start = process.riscv_process_start,
+    .map_page = paging.map_page,
 };
 
 pub fn init() void {

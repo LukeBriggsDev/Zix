@@ -16,6 +16,8 @@ pub const Arch = struct {
     switch_context: *const fn (prev_sp: **usize, next_sp: **usize) void,
     /// Entry trampoline for new processes: calls the entry stored in s0, then process_exit
     process_start: *const fn () callconv(.naked) noreturn,
+    /// Page mapping function
+    map_page: *const fn (allocator: std.mem.Allocator, root_table: []usize, vaddr: usize, paddr: usize, flags: usize) void,
 };
 
 /// Instance containing the Arch methods of the current architecture

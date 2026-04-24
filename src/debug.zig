@@ -11,12 +11,15 @@ const source_files: []const []const u8 = &.{
     "arch/riscv64/csr.zig",
     "arch/riscv64/sbi.zig",
     "arch/riscv64/tty.zig",
+    "arch/riscv64/paging.zig",
     "debug.zig",
     "io/io.zig",
     "io/tty.zig",
     "kernel.zig",
+    "testing.zig",
     "mem/KernelPageAllocator.zig",
     "mem/mem.zig",
+    "proc/process.zig",
 };
 
 pub const DebugInfo = @This();
