@@ -153,7 +153,9 @@ fn printLineInfo(
     compile_unit_name: []const u8,
     tty_config: std.io.tty.Config,
 ) !void {
-    try tty_config.setColor(out_stream, .bold);
+    var buf: [0]u8 = .{};
+    var writer_adapter = out_stream.adaptToNewApi(&buf);
+    try tty_config.setColor(&writer_adapter.new_interface, .bold);
 
     if (source_location) |*sl| {
         try out_stream.print("{s}:{d}:{d}\n", .{ sl.file_name, sl.line, sl.column });
@@ -170,10 +172,10 @@ fn printLineInfo(
         try out_stream.writeAll("???:?:?");
     }
 
-    try tty_config.setColor(out_stream, .reset);
+    try tty_config.setColor(&writer_adapter.new_interface, .reset);
     try out_stream.writeAll(": ");
-    try tty_config.setColor(out_stream, .dim);
+    try tty_config.setColor(&writer_adapter.new_interface, .dim);
     try out_stream.print("0x{x} in {s} ({s})", .{ address, symbol_name, compile_unit_name });
-    try tty_config.setColor(out_stream, .reset);
+    try tty_config.setColor(&writer_adapter.new_interface, .reset);
     try out_stream.writeAll("\n");
 }

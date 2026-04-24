@@ -86,7 +86,7 @@ export fn kmain() noreturn {
 }
 
 /// Main entry point for the kernel from the SBI
-export fn boot() linksection(".text.boot") callconv(.Naked) noreturn {
+export fn boot() linksection(".text.boot") callconv(.naked) noreturn {
     asm volatile (
         \\mv sp, %[stack_top] // Set the stack pointer
         \\j kmain

@@ -1,5 +1,16 @@
 pub const num_callee_saved_regs = 13;
 
+/// Entry trampoline for new processes.
+/// s0 = entry point, s1 = process_exit function (both set via Process.init stack setup).
+/// Calls entry via s0, then tail-calls the exit handler in s1 — no direct dep on proc module.
+pub export fn riscv_process_start() callconv(.naked) noreturn {
+    asm volatile (
+        \\jalr s0
+        \\jr s1
+        \\unimp
+    );
+}
+
 /// A wrapper function to call `riscv_switch_context` via naked calling convention with parameters.
 /// Stack corruption occurs without this an context switching fails.
 pub fn switch_context(prev_sp: **usize, next_sp: **usize) void {
@@ -13,7 +24,7 @@ pub fn switch_context(prev_sp: **usize, next_sp: **usize) void {
 
 /// Switch context by pushing registers to the stack
 /// then popping them off the next process's stack
-export fn riscv_switch_context() callconv(.Naked) void {
+export fn riscv_switch_context() callconv(.naked) void {
     asm volatile (
     // Save callee-saved registers onto the current process's stack.
     // Move stack to store contents of the 12 callee registers + ra (8 bytes each)

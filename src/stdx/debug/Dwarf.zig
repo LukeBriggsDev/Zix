@@ -1045,8 +1045,8 @@ fn scanAllCompileUnits(di: *Dwarf, allocator: Allocator) ScanError!void {
     var fbr: FixedBufferReader = .{ .buf = di.section(.debug_info).?, .endian = di.endian };
     var this_unit_offset: u64 = 0;
 
-    var attrs_buf = std.ArrayList(Die.Attr).init(allocator);
-    defer attrs_buf.deinit();
+    var attrs_buf: std.ArrayList(Die.Attr) = .{};
+    defer attrs_buf.deinit(allocator);
 
     while (this_unit_offset < fbr.buf.len) {
         try fbr.seekTo(this_unit_offset);
@@ -1077,7 +1077,7 @@ fn scanAllCompileUnits(di: *Dwarf, allocator: Allocator) ScanError!void {
         for (abbrev_table.abbrevs) |abbrev| {
             max_attrs = @max(max_attrs, abbrev.attrs.len);
         }
-        try attrs_buf.resize(max_attrs);
+        try attrs_buf.resize(allocator, max_attrs);
 
         var compile_unit_die = (try parseDie(
             &fbr,
@@ -1350,16 +1350,16 @@ fn parseAbbrevTable(di: *Dwarf, allocator: Allocator, offset: u64) !Abbrev.Table
         .endian = di.endian,
     };
 
-    var abbrevs = std.ArrayList(Abbrev).init(allocator);
+    var abbrevs: std.ArrayList(Abbrev) = .{};
     defer {
         for (abbrevs.items) |*abbrev| {
             abbrev.deinit(allocator);
         }
-        abbrevs.deinit();
+        abbrevs.deinit(allocator);
     }
 
-    var attrs = std.ArrayList(Abbrev.Attr).init(allocator);
-    defer attrs.deinit();
+    var attrs: std.ArrayList(Abbrev.Attr) = .{};
+    defer attrs.deinit(allocator);
 
     while (true) {
         const code = try fbr.readUleb128(u64);
@@ -1371,7 +1371,7 @@ fn parseAbbrevTable(di: *Dwarf, allocator: Allocator, offset: u64) !Abbrev.Table
             const attr_id = try fbr.readUleb128(u64);
             const form_id = try fbr.readUleb128(u64);
             if (attr_id == 0 and form_id == 0) break;
-            try attrs.append(.{
+            try attrs.append(allocator, .{
                 .id = attr_id,
                 .form_id = form_id,
                 .payload = switch (form_id) {
@@ -1381,17 +1381,17 @@ fn parseAbbrevTable(di: *Dwarf, allocator: Allocator, offset: u64) !Abbrev.Table
             });
         }
 
-        try abbrevs.append(.{
+        try abbrevs.append(allocator, .{
             .code = code,
             .tag_id = tag_id,
             .has_children = has_children,
-            .attrs = try attrs.toOwnedSlice(),
+            .attrs = try attrs.toOwnedSlice(allocator),
         });
     }
 
     return .{
         .offset = offset,
-        .abbrevs = try abbrevs.toOwnedSlice(),
+        .abbrevs = try abbrevs.toOwnedSlice(allocator),
     };
 }
 

@@ -6,9 +6,9 @@ const mem = @import("mem");
 
 const stack_size = 8192;
 
-const ProcessNode = std.DoublyLinkedList(Process).Node;
+const ProcessNode = std.DoublyLinkedList.Node;
 
-var proc_list = std.DoublyLinkedList(Process){};
+var proc_list: std.DoublyLinkedList = .{};
 
 var current_process: *ProcessNode = undefined;
 
@@ -17,10 +17,14 @@ const ProcessState = enum {
     runnable,
 };
 
+fn processFromNode(node: *ProcessNode) *Process {
+    return @fieldParentPtr("node", node);
+}
+
 /// Cooperatively yield execution to the next available process.
 /// If the calling process is the only available process (barring the idle process), no context switch will occur.
 fn yield() void {
-    if (proc_list.len <= 2) {
+    if (proc_list.len() <= 2) {
         // Don't yield to idle
         return;
     }
@@ -30,20 +34,25 @@ fn yield() void {
         return;
     }
 
+    const next_proc = processFromNode(next);
+
     // Store pointer to bottom of kernel stack
     asm volatile (
         \\csrw sscratch, %[sscratch]
         :
-        : [sscratch] "r" (@intFromPtr(&next.data.stack) + next.data.stack.len),
+        : [sscratch] "r" (@intFromPtr(&next_proc.stack) + next_proc.stack.len),
     );
 
-    var prev_proc: *ProcessNode = current_process;
+    const prev_node: *ProcessNode = current_process;
     current_process = next;
 
-    arch.switch_context(&prev_proc.data.stack_pointer, &current_process.data.stack_pointer);
+    const prev_proc = processFromNode(prev_node);
+    const curr_proc = processFromNode(current_process);
+    arch.switch_context(&prev_proc.stack_pointer, &curr_proc.stack_pointer);
 }
 
 const Process = struct {
+    node: std.DoublyLinkedList.Node = .{},
     id: usize,
     state: ProcessState,
     stack_pointer: *usize,
@@ -61,10 +70,9 @@ const Process = struct {
 
     /// Initialize a `Process`, providing it's fields and adding it to the process list.
     pub fn init(allocator: std.mem.Allocator, program_counter: *const anyopaque) !*ProcessNode {
-        const L = std.DoublyLinkedList(Process);
-        var node = try allocator.create(L.Node);
-        node.data = .{
-            .id = proc_list.len,
+        const process = try allocator.create(Process);
+        process.* = .{
+            .id = proc_list.len(),
             .state = .runnable,
             .stack_pointer = undefined,
             .stack = std.mem.zeroes([stack_size]u8),
@@ -72,32 +80,59 @@ const Process = struct {
 
         // Stack callee-saved registers (s11-s0).
         // The values will be restored in the first context switch
-        // Stack as arrat of words
+        // Stack as array of words
         const regs: []usize = blk: {
-            const ptr: [*]usize = @alignCast(@ptrCast(&node.data.stack));
-            break :blk ptr[0 .. node.data.stack.len / @sizeOf(usize)];
+            const ptr: [*]usize = @ptrCast(@alignCast(&process.stack));
+            break :blk ptr[0 .. process.stack.len / @sizeOf(usize)];
         };
 
         // Minus reg_num + 1 for ra from sp
         const sp = regs[regs.len - arch.num_callee_saved_regs ..];
 
-        // Add program counter to stack
-        sp[0] = @intFromPtr(program_counter);
+        // sp[0] = ra: trampoline (riscv_process_start) that calls entry then exits
+        // sp[1] = s0: actual entry point
+        // sp[2] = s1: process_exit function pointer (avoids linker dep in arch module)
+        sp[0] = @intFromPtr(arch.process_start);
+        sp[1] = @intFromPtr(program_counter);
+        sp[2] = @intFromPtr(&process_exit);
 
         std.debug.assert(sp.len == arch.num_callee_saved_regs);
 
-        // Zero out callee saved registers
-        for (sp[1..]) |*reg| {
+        // Zero out remaining callee saved registers
+        for (sp[3..]) |*reg| {
             reg.* = 0;
         }
 
-        node.data.stack_pointer = &sp.ptr[0];
+        process.stack_pointer = &sp.ptr[0];
 
-        proc_list.append(node);
+        proc_list.append(&process.node);
 
-        return node;
+        return &process.node;
     }
 };
+
+/// Called (via riscv_process_start) when a process entry function returns.
+/// Removes the process from the scheduler and switches to the next one.
+export fn process_exit() noreturn {
+    proc_list.remove(current_process);
+
+    const next: *ProcessNode = if (proc_list.len() == 1)
+        proc_list.first.? // only idle remains
+    else
+        proc_list.first.?.next orelse proc_list.first.?; // prefer first non-idle
+
+    const next_proc = processFromNode(next);
+    asm volatile (
+        \\csrw sscratch, %[sscratch]
+        :
+        : [sscratch] "r" (@intFromPtr(&next_proc.stack) + next_proc.stack.len),
+    );
+    current_process = next;
+    var dummy: usize = undefined;
+    var dummy_ptr: *usize = &dummy;
+    arch.switch_context(&dummy_ptr, &next_proc.stack_pointer);
+    unreachable;
+}
 
 /// Initialise the process system, creating the idle process (pid 0)
 pub fn init(allocator: std.mem.Allocator) !void {
@@ -136,9 +171,9 @@ test "Context switch 20 times" {
     };
 
     std.log.info("Initialized process idle", .{});
-    std.log.info("PID: {}", .{proc_list.first.?.data.id});
-    assert(proc_list.len == 1);
-    assert(current_process.data.id == 0);
+    std.log.info("PID: {}", .{processFromNode(proc_list.first.?).id});
+    assert(proc_list.len() == 1);
+    assert(processFromNode(current_process).id == 0);
 
     const process_a = try Process.init(mem.kernel_page_allocator, &test_funcs.proc_a_entry);
     _ = process_a;
@@ -150,5 +185,4 @@ test "Context switch 20 times" {
     yield();
     assert(test_funcs.a_counter == 20);
     assert(test_funcs.b_counter == 20);
-    @panic("switch to idle process");
 }

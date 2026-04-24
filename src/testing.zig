@@ -49,7 +49,7 @@ pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?us
         std.log.err("panic: stacktrace err = {}", .{err});
     };
 
-    while (true) {}
+    arch.internals.shutdown();
 }
 
 export fn tmain() noreturn {
@@ -69,7 +69,7 @@ export fn tmain() noreturn {
     arch.internals.shutdown();
 }
 
-export fn boot() linksection(".text.boot") callconv(.Naked) noreturn {
+export fn boot() linksection(".text.boot") callconv(.naked) noreturn {
     asm volatile (
         \\mv sp, %[stack_top] // Set the stack pointer
         \\j tmain

@@ -47,7 +47,7 @@ fn sbi_call(
           [arg5] "{a5}" (arg5),
           [fid] "{a6}" (fid),
           [eid] "{a7}" (eid),
-        : "memory"
+        : .{ .memory = true }
     );
     return SBIret{
         .err = @enumFromInt(err),
@@ -87,17 +87,12 @@ pub fn sbi_putstr(string: []const u8) SBIErrorCode {
     return SBIErrorCode.SBI_SUCCESS;
 }
 
-/// Shutdown
+/// Shutdown — try SBI legacy shutdown first, fall back to SiFive Test finisher
+/// (QEMU virt MMIO at 0x100000) which always terminates the VM.
 pub fn sbi_shutdown() noreturn {
-    _ = sbi_call(
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        8,
-    );
+    _ = sbi_call(0, 0, 0, 0, 0, 0, 0, 8);
+    // SBI call didn't terminate; write FINISHER_PASS to the SiFive Test finisher
+    const test_finisher: *volatile u32 = @ptrFromInt(0x100000);
+    test_finisher.* = 0x5555;
     unreachable;
 }

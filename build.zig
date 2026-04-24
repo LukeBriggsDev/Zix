@@ -37,12 +37,15 @@ pub fn build(b: *std.Build) void {
     module_proc.addImport("mem", module_mem);
 
     // Kernel
-    const kernel = b.addExecutable(.{
-        .name = "zix",
+    const kernel_mod = b.createModule(.{
         .root_source_file = b.path("src/kernel.zig"),
         .target = target,
         .optimize = .Debug,
         .code_model = .medium,
+    });
+    const kernel = b.addExecutable(.{
+        .name = "zix",
+        .root_module = kernel_mod,
     });
     kernel.linker_script = b.path("src/kernel.ld");
     kernel.entry = .{ .symbol_name = "boot" };
@@ -83,7 +86,6 @@ pub fn build(b: *std.Build) void {
                 .path = b.path("src/testing.zig"),
                 .mode = .simple,
             },
-            .target = target,
         });
         const options = b.addOptions();
         options.addOption([]const u8, "module_name", module.key_ptr.*);

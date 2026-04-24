@@ -15,6 +15,7 @@ pub const arch = Arch{
     .shutdown = sbi.sbi_shutdown,
     .num_callee_saved_regs = process.num_callee_saved_regs,
     .switch_context = process.switch_context,
+    .process_start = process.riscv_process_start,
 };
 
 pub fn init() void {
