@@ -11,6 +11,31 @@ pub fn build(b: *std.Build) void {
         .abi = .none,
     });
 
+    // Userspace programs
+    const shell_dep = b.dependency("zixshell", .{});
+    const shell_artifact = shell_dep.artifact("shell");
+
+    const objcopy1 = b.addSystemCommand(&.{
+        "llvm-objcopy",
+        "--set-section-flags",
+        ".bss=alloc,contents",
+        "-O",
+        "binary",
+    });
+    objcopy1.addArtifactArg(shell_artifact);
+    const shell_bin = objcopy1.addOutputFileArg("shell.bin");
+
+    const objcopy2 = b.addSystemCommand(&.{
+        "llvm-objcopy",
+        "-Ibinary",
+        "-Oelf64-littleriscv",
+        "shell.bin",
+    });
+    objcopy2.setCwd(shell_bin.dirname());
+    const shell_bin_o = objcopy2.addOutputFileArg("shell.bin.o");
+
+    const install_shell_bin_o = b.addInstallFile(shell_bin_o, "bin/shell.bin.o");
+
     // Modules
     const module_arch = b.addModule("arch", .{
         .root_source_file = b.path("src/arch/arch.zig"),
@@ -58,6 +83,8 @@ pub fn build(b: *std.Build) void {
 
     // Install kernel
     const kernel_install_step = b.addInstallArtifact(kernel, .{});
+    kernel_install_step.step.dependOn(&install_shell_bin_o.step);
+    b.getInstallStep().dependOn(&kernel_install_step.step);
 
     // Kernel run step
     const run_qemu = b.addSystemCommand(&[_][]const u8{"qemu-system-riscv64"});
