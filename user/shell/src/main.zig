@@ -1,5 +1,8 @@
-const zix = @import("zixlib");
+comptime {
+    // Comptime import so that this isn't lazy loaded
+    _ = @import("zixlib");
+}
 
-pub fn main() void {
+export fn main() void {
     while (true) {}
 }

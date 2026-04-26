@@ -29,5 +29,7 @@ pub fn build(b: *std.Build) void {
         .name = "shell",
         .root_module = shell_mod,
     });
+
+    shell.entry = .{ .symbol_name = "start" };
     b.installArtifact(shell);
 }

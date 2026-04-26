@@ -12,8 +12,9 @@ pub fn build(b: *std.Build) void {
     });
 
     // Userspace programs
-    const shell_dep = b.dependency("zixshell", .{});
+    const shell_dep = b.dependency("zixshell", .{ .target = target });
     const shell_artifact = shell_dep.artifact("shell");
+    shell_artifact.linker_script = b.path("user/user.ld");
 
     const objcopy1 = b.addSystemCommand(&.{
         "llvm-objcopy",
@@ -35,6 +36,7 @@ pub fn build(b: *std.Build) void {
     const shell_bin_o = objcopy2.addOutputFileArg("shell.bin.o");
 
     const install_shell_bin_o = b.addInstallFile(shell_bin_o, "bin/shell.bin.o");
+    const install_shell_elf = b.addInstallArtifact(shell_artifact, .{});
 
     // Modules
     const module_arch = b.addModule("arch", .{
@@ -84,6 +86,7 @@ pub fn build(b: *std.Build) void {
     // Install kernel
     const kernel_install_step = b.addInstallArtifact(kernel, .{});
     kernel_install_step.step.dependOn(&install_shell_bin_o.step);
+    kernel_install_step.step.dependOn(&install_shell_elf.step);
     b.getInstallStep().dependOn(&kernel_install_step.step);
 
     // Kernel run step
