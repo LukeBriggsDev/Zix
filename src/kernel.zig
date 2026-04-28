@@ -5,6 +5,7 @@ const arch = @import("arch").internals;
 const io = @import("io");
 const debug = @import("debug.zig");
 pub const mem = @import("mem");
+const proc = @import("proc");
 const testing = @import("testing.zig");
 
 pub const std_options: std.Options = .{
@@ -32,6 +33,8 @@ const __bss_end = @extern([*]u8, .{
 const __stack_top = @extern([*]u8, .{
     .name = "__bss_end",
 });
+
+const shell_embed = @import("shell_embed");
 
 var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
 
@@ -76,11 +79,17 @@ export fn kmain() noreturn {
 
     const allocator = mem.kernel_page_allocator;
 
-    const my_arr = allocator.alloc(u8, 5) catch {
+    proc.init(allocator) catch {
         unreachable;
     };
 
-    my_arr[0] = 1;
+    _ = proc.Process.init(allocator, shell_embed.data) catch {
+        unreachable;
+    };
+
+    proc.yield();
+
+    //@panic("Switched to idle process");
 
     arch.shutdown();
 }

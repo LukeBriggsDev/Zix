@@ -12,6 +12,8 @@ const free_ram_end = @extern([*]u8, .{
     .name = "free_ram_end",
 });
 
+const user_base = 0x1000000;
+
 const satp_sv39 = 8 << 60;
 const stack_size = 8192;
 
@@ -32,7 +34,7 @@ fn processFromNode(node: *ProcessNode) *Process {
 
 /// Cooperatively yield execution to the next available process.
 /// If the calling process is the only available process (barring the idle process), no context switch will occur.
-fn yield() void {
+pub fn yield() void {
     if (proc_list.len() <= 2) {
         // Don't yield to idle
         return;
@@ -64,7 +66,11 @@ fn yield() void {
     arch.switch_context(&prev_proc.stack_pointer, &curr_proc.stack_pointer);
 }
 
-const Process = struct {
+export fn user_entry() void {
+    @panic("Not implemented");
+}
+
+pub const Process = struct {
     node: std.DoublyLinkedList.Node = .{},
     id: usize,
     state: ProcessState,
@@ -83,15 +89,26 @@ const Process = struct {
     }
 
     /// Initialize a `Process`, providing it's fields and adding it to the process list.
-    pub fn init(allocator: std.mem.Allocator, program_counter: *const anyopaque) !*ProcessNode {
+    pub fn init(allocator: std.mem.Allocator, image: []const u8) !*ProcessNode {
         const process = try allocator.create(Process);
 
         const page_table = try allocator.alloc(usize, std.heap.pageSize() / @sizeOf(usize));
 
+        // Map kernel pages
         var paddr: usize = @intFromPtr(kernel_base);
         while (paddr < @intFromPtr(free_ram_end)) : (paddr += std.heap.pageSize()) {
             arch.map_page(allocator, page_table, paddr, paddr, 0b1110);
         }
+
+        var off: usize = 0;
+        while (off < image.len) : (off += std.heap.pageSize()) {
+            const page = try allocator.alloc(u8, std.heap.pageSize());
+            const copy_size = @min(std.heap.pageSize(), image.len - off);
+            @memcpy(page[0..copy_size], image[off..][0..copy_size]);
+            @memset(page[copy_size..], 0);
+            arch.map_page(allocator, page_table, @intFromPtr(page.ptr), user_base + off, 0b11110);
+        }
+
         process.* = .{
             .id = proc_list.len(),
             .state = .runnable,
@@ -115,7 +132,7 @@ const Process = struct {
         // sp[1] = s0: actual entry point
         // sp[2] = s1: process_exit function pointer (avoids linker dep in arch module)
         sp[0] = @intFromPtr(arch.process_start);
-        sp[1] = @intFromPtr(program_counter);
+        sp[1] = @intFromPtr(&user_entry);
         sp[2] = @intFromPtr(&process_exit);
 
         std.debug.assert(sp.len == arch.num_callee_saved_regs);
@@ -159,7 +176,7 @@ export fn process_exit() noreturn {
 /// Initialise the process system, creating the idle process (pid 0)
 pub fn init(allocator: std.mem.Allocator) !void {
     std.log.info("Creating allocator", .{});
-    const process_idle = try Process.init(allocator, undefined);
+    const process_idle = try Process.init(allocator, &.{});
     current_process = process_idle;
 }
 

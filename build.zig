@@ -26,16 +26,15 @@ pub fn build(b: *std.Build) void {
     objcopy1.addArtifactArg(shell_artifact);
     const shell_bin = objcopy1.addOutputFileArg("shell.bin");
 
-    const objcopy2 = b.addSystemCommand(&.{
-        "llvm-objcopy",
-        "-Ibinary",
-        "-Oelf64-littleriscv",
-        "shell.bin",
-    });
-    objcopy2.setCwd(shell_bin.dirname());
-    const shell_bin_o = objcopy2.addOutputFileArg("shell.bin.o");
+    const wf = b.addWriteFiles();
+    _ = wf.addCopyFile(shell_bin, "shell.bin");
+    const shell_embed_src = wf.add("shell_embed.zig", "pub const data = @embedFile(\"shell.bin\");");
 
-    const install_shell_bin_o = b.addInstallFile(shell_bin_o, "bin/shell.bin.o");
+    const module_shell_embed = b.createModule(.{
+        .root_source_file = shell_embed_src,
+        .target = target,
+    });
+
     const install_shell_elf = b.addInstallArtifact(shell_artifact, .{});
 
     // Modules
@@ -83,9 +82,10 @@ pub fn build(b: *std.Build) void {
         kernel.root_module.addImport(module.key_ptr.*, module.value_ptr.*);
     }
 
+    kernel_mod.addImport("shell_embed", module_shell_embed);
+
     // Install kernel
     const kernel_install_step = b.addInstallArtifact(kernel, .{});
-    kernel_install_step.step.dependOn(&install_shell_bin_o.step);
     kernel_install_step.step.dependOn(&install_shell_elf.step);
     b.getInstallStep().dependOn(&kernel_install_step.step);
 
