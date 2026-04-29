@@ -31,7 +31,7 @@ const __bss_end = @extern([*]u8, .{
 });
 
 const __stack_top = @extern([*]u8, .{
-    .name = "__bss_end",
+    .name = "__stack_top",
 });
 
 const shell_embed = @import("shell_embed");

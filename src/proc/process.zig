@@ -35,11 +35,6 @@ fn processFromNode(node: *ProcessNode) *Process {
 /// Cooperatively yield execution to the next available process.
 /// If the calling process is the only available process (barring the idle process), no context switch will occur.
 pub fn yield() void {
-    if (proc_list.len() <= 2) {
-        // Don't yield to idle
-        return;
-    }
-
     const next: *ProcessNode = current_process.next orelse proc_list.first.?.next.?;
     if (next == current_process) {
         return;
@@ -175,7 +170,6 @@ export fn process_exit() noreturn {
 
 /// Initialise the process system, creating the idle process (pid 0)
 pub fn init(allocator: std.mem.Allocator) !void {
-    std.log.info("Creating allocator", .{});
     const process_idle = try Process.init(allocator, &.{});
     current_process = process_idle;
 }
