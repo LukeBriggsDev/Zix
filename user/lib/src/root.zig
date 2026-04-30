@@ -11,6 +11,7 @@ export fn start() linksection(".text.start") callconv(.naked) void {
         \\mv sp, %[stack_top]
         \\call main
         \\call exit
-        : [stack_top] "=r" (stack_top),
+        :
+        : [stack_top] "r" (stack_top),
     );
 }

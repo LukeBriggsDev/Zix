@@ -15,6 +15,10 @@ const free_ram_end = @extern([*]u8, .{
 const user_base = 0x1000000;
 
 const satp_sv39 = 8 << 60;
+
+// SPIE bit position
+const sstatus_spie = 1 << 5;
+
 const stack_size = 8192;
 
 const ProcessNode = std.DoublyLinkedList.Node;
@@ -61,8 +65,15 @@ pub fn yield() void {
     arch.switch_context(&prev_proc.stack_pointer, &curr_proc.stack_pointer);
 }
 
-export fn user_entry() void {
-    @panic("Not implemented");
+export fn user_entry() callconv(.naked) void {
+    asm volatile (
+        \\csrw sepc, %[sepc]
+        \\csrw sstatus, %[sstatus]
+        \\sret
+        :
+        : [sepc] "r" (user_base),
+          [sstatus] "r" (sstatus_spie),
+    );
 }
 
 pub const Process = struct {
@@ -101,7 +112,7 @@ pub const Process = struct {
             const copy_size = @min(std.heap.pageSize(), image.len - off);
             @memcpy(page[0..copy_size], image[off..][0..copy_size]);
             @memset(page[copy_size..], 0);
-            arch.map_page(allocator, page_table, @intFromPtr(page.ptr), user_base + off, 0b11110);
+            arch.map_page(allocator, page_table, user_base + off, @intFromPtr(page.ptr), 0b11110);
         }
 
         process.* = .{
