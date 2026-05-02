@@ -1,5 +1,6 @@
 //! Methods relating to Control Status Registers
 const std = @import("std");
+const sbi = @import("sbi.zig");
 
 const ControlStatusRegister = enum {
     sstatus,
@@ -14,6 +15,14 @@ const ControlStatusRegister = enum {
     stval,
     sip,
     satp,
+};
+
+const syscall_no = enum(isize) {
+    putchar = 1,
+};
+
+const scause_value = enum(usize) {
+    ecall = 8,
 };
 
 /// Write to a control status register with a value
@@ -159,19 +168,43 @@ fn exception_entry() align(8) callconv(.naked) void {
         // Load stack pointer
         \\ld sp, 8 * 31(sp)
         \\sret
-        :
-        : [handle_trap] "r" (&handle_trap),
     );
 }
 
+fn handle_syscall(frame: *TrapFrame) void {
+    // Switch on syscall number register
+    switch (frame.a3) {
+        @intFromEnum(syscall_no.putchar) => {
+            const char = std.math.cast(u8, frame.a0) orelse @panic("Number larger than u8 passed to putchar");
+            _ = sbi.sbi_putchar(char);
+        },
+        else => {
+            std.log.err("Syscall = {x}", .{frame.a3});
+            @panic("unexpected syscall");
+        },
+    }
+}
+
 /// Trap handler
-export fn handle_trap(frame: *TrapFrame) noreturn {
-    _ = frame;
+export fn handle_trap(frame: *TrapFrame) void {
     const scause = read_csr(ControlStatusRegister.scause);
     const stval = read_csr(ControlStatusRegister.stval);
-    const sepc = read_csr(ControlStatusRegister.sepc);
-    std.log.err("Unexpected trap: scause = {x}, stval = {x}, sepc = {x}\n", .{ scause, stval, sepc });
-    while (true) {}
+    var sepc = read_csr(ControlStatusRegister.sepc);
+
+    const cause = std.enums.fromInt(scause_value, scause) orelse {
+        std.log.err("Unexpected trap: scause = {x}, stval = {x}, sepc = {x}\n", .{ scause, stval, sepc });
+        while (true) {}
+    };
+
+    switch (cause) {
+        scause_value.ecall => {
+            handle_syscall(frame);
+            // Move PC forward past the syscall
+            sepc += @sizeOf(usize);
+        },
+    }
+
+    write_csr(ControlStatusRegister.sepc, sepc);
 }
 
 /// Initialize csr exception handler

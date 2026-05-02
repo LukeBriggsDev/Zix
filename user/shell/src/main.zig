@@ -1,8 +1,8 @@
-comptime {
-    // Comptime import so that this isn't lazy loaded
-    _ = @import("zixlib");
-}
+const zixlib = @import("zixlib");
 
 export fn main() void {
-    while (true) {}
+    var w = zixlib.SerialWriter{};
+    _ = w.writer().write("Hello\n") catch {
+        unreachable;
+    };
 }
