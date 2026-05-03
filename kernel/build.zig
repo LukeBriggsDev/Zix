@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     // Userspace programs
     const shell_dep = b.dependency("zixshell", .{ .target = target });
     const shell_artifact = shell_dep.artifact("shell");
-    shell_artifact.linker_script = b.path("user/user.ld");
+    shell_artifact.linker_script = b.path("user.ld");
 
     const objcopy1 = b.addSystemCommand(&.{
         "llvm-objcopy",
