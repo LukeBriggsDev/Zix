@@ -24,11 +24,10 @@ pub const std_options: std.Options = .{
 
 var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
 
-pub fn logFn(comptime level: std.log.Level, comptime scope: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
+pub fn logFn(comptime level: std.log.Level, comptime scope: @EnumLiteral(), comptime format: []const u8, args: anytype) void {
     const prefix = "[" ++ comptime level.asText() ++ "] " ++ "<" ++ @tagName(scope) ++ "> ";
 
-    // Print message
-    std.fmt.format(io.TTY.writer, prefix ++ format ++ "\n", args) catch {};
+    io.TTY.writer.print(prefix ++ format ++ "\n", args) catch {};
 }
 
 pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?usize) noreturn {

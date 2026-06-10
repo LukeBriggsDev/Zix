@@ -47,8 +47,7 @@ fn sbi_call(
           [arg5] "{a5}" (arg5),
           [fid] "{a6}" (fid),
           [eid] "{a7}" (eid),
-        : .{ .memory = true }
-    );
+        : .{ .memory = true });
     return SBIret{
         .err = @enumFromInt(err),
         .val = val,
@@ -70,6 +69,11 @@ pub fn sbi_putchar(char: u8) SBIErrorCode {
         0,
         1,
     );
+    return ret.err;
+}
+
+pub fn sbi_getchar() SBIErrorCode {
+    const ret = sbi_call(0, 0, 0, 0, 0, 0, 0, 2);
     return ret.err;
 }
 

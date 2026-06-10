@@ -5,7 +5,7 @@ const std = @import("std");
 /// Arch structure containing generic fields that architectures should expose
 pub const Arch = struct {
     /// Writer to print to a stdout terminal
-    writer: std.io.AnyWriter,
+    writer: *std.Io.Writer,
     /// Architecture initialization (exception handling, etc)
     init: *const fn () void,
     /// Shutdown method

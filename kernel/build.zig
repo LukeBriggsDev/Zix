@@ -152,7 +152,7 @@ pub fn build(b: *std.Build) void {
         };
         defer allocator.free(test_log);
         const write_stdout_step = b.addInstallFile(
-            run_qemu_test.captureStdOut(),
+            run_qemu_test.captureStdOut(.{}),
             test_log,
         );
 

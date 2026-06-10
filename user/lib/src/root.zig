@@ -38,14 +38,20 @@ pub fn syscall(
 }
 
 pub const SerialWriter = struct {
-    const Writer = std.io.GenericWriter(*SerialWriter, PrintError, write);
+    pub const Writer = struct {
+        context: *SerialWriter,
 
-    fn write(_: *SerialWriter, data: []const u8) PrintError!usize {
-        for (data) |char| {
-            putchar(char);
+        pub fn write(_: Writer, data: []const u8) PrintError!usize {
+            for (data) |char| {
+                putchar(char);
+            }
+            return data.len;
         }
-        return data.len;
-    }
+
+        pub fn writeAll(self: Writer, data: []const u8) PrintError!void {
+            _ = try self.write(data);
+        }
+    };
 
     pub fn writer(serial_writer: *SerialWriter) Writer {
         return .{ .context = serial_writer };

@@ -1,9 +1,6 @@
-// Code derived from https://github.com/benburkert/freestanding.zig/
-
 const std = @import("std");
 const builtin = @import("builtin");
-
-const stdx = @import("stdx.zig");
+const DW = std.dwarf;
 
 const source_files: []const []const u8 = &.{
     "arch/arch.zig",
@@ -25,101 +22,111 @@ const source_files: []const []const u8 = &.{
 pub const DebugInfo = @This();
 
 pub const Symbols = struct {
-    debug_info: [2]@Type(.enum_literal) = [_]@Type(.enum_literal){ .@".debug_info_start", .@".debug_info_end" },
-    debug_abbrev: [2]@Type(.enum_literal) = [_]@Type(.enum_literal){ .@".debug_abbrev_start", .@".debug_abbrev_end" },
-    debug_str: [2]@Type(.enum_literal) = [_]@Type(.enum_literal){ .@".debug_str_start", .@".debug_str_end" },
-    debug_line: [2]@Type(.enum_literal) = [_]@Type(.enum_literal){ .@".debug_line_start", .@".debug_line_end" },
-    debug_ranges: [2]@Type(.enum_literal) = [_]@Type(.enum_literal){ .@".debug_ranges_start", .@".debug_ranges_end" },
+    debug_info: [2]@EnumLiteral() = [_]@EnumLiteral(){ .@".debug_info_start", .@".debug_info_end" },
+    debug_abbrev: [2]@EnumLiteral() = [_]@EnumLiteral(){ .@".debug_abbrev_start", .@".debug_abbrev_end" },
+    debug_str: [2]@EnumLiteral() = [_]@EnumLiteral(){ .@".debug_str_start", .@".debug_str_end" },
+    debug_line: [2]@EnumLiteral() = [_]@EnumLiteral(){ .@".debug_line_start", .@".debug_line_end" },
+    debug_ranges: [2]@EnumLiteral() = [_]@EnumLiteral(){ .@".debug_ranges_start", .@".debug_ranges_end" },
 
     fn section(self: @This(), comptime symbol: std.meta.FieldEnum(@This())) []const u8 {
         const start_addr = addressOf(@field(self, @tagName(symbol))[0]);
         const end_addr = addressOf(@field(self, @tagName(symbol))[1]);
-
         const sgmt: [*]u8 = @ptrFromInt(start_addr);
         return sgmt[0..((end_addr - start_addr) / @sizeOf(u8))];
     }
 
-    fn addressOf(symbol: @Type(.enum_literal)) usize {
+    fn addressOf(symbol: @EnumLiteral()) usize {
         return @intFromPtr(@extern(*anyopaque, .{ .name = @tagName(symbol) }));
     }
 };
 
 allocator: std.mem.Allocator,
-elf_module: stdx.debug.Dwarf.ElfModule,
+dwarf: std.debug.Dwarf,
+
+const endian = builtin.target.cpu.arch.endian();
 
 pub fn init(allocator: std.mem.Allocator, symbols: Symbols) !DebugInfo {
-    const debug_info = symbols.section(.debug_info);
-    const debug_abbrev = symbols.section(.debug_abbrev);
-    const debug_str = symbols.section(.debug_str);
-    const debug_line = symbols.section(.debug_line);
-    const debug_ranges = symbols.section(.debug_ranges);
+    const Sid = std.debug.Dwarf.Section.Id;
+    var sections: std.debug.Dwarf.SectionArray = @splat(null);
+    inline for (.{
+        .{ .id = Sid.debug_info, .data = symbols.section(.debug_info) },
+        .{ .id = Sid.debug_abbrev, .data = symbols.section(.debug_abbrev) },
+        .{ .id = Sid.debug_str, .data = symbols.section(.debug_str) },
+        .{ .id = Sid.debug_line, .data = symbols.section(.debug_line) },
+        .{ .id = Sid.debug_ranges, .data = symbols.section(.debug_ranges) },
+    }) |s| {
+        sections[@intFromEnum(s.id)] = .{ .data = s.data, .owned = false };
+    }
 
-    var sections = stdx.debug.Dwarf.null_section_array;
-    sections[@intFromEnum(stdx.debug.Dwarf.Section.Id.debug_info)] = .{
-        .data = debug_info,
-        .virtual_address = @intFromPtr(debug_info.ptr),
-        .owned = false,
-    };
-    sections[@intFromEnum(stdx.debug.Dwarf.Section.Id.debug_abbrev)] = .{
-        .data = debug_abbrev,
-        .virtual_address = @intFromPtr(debug_abbrev.ptr),
-        .owned = false,
-    };
-    sections[@intFromEnum(stdx.debug.Dwarf.Section.Id.debug_str)] = .{
-        .data = debug_str,
-        .virtual_address = @intFromPtr(debug_str.ptr),
-        .owned = false,
-    };
-    sections[@intFromEnum(stdx.debug.Dwarf.Section.Id.debug_line)] = .{
-        .data = debug_line,
-        .virtual_address = @intFromPtr(debug_line.ptr),
-        .owned = false,
-    };
-    sections[@intFromEnum(stdx.debug.Dwarf.Section.Id.debug_ranges)] = .{
-        .data = debug_ranges,
-        .virtual_address = @intFromPtr(debug_ranges.ptr),
-        .owned = false,
-    };
+    var dwarf: std.debug.Dwarf = .{ .sections = sections };
+    try dwarf.open(allocator, endian);
+    try dwarf.populateRanges(allocator, endian);
 
-    var dwarf: stdx.debug.Dwarf = .{
-        .endian = builtin.target.cpu.arch.endian(),
-        .sections = sections,
-        .is_macho = false,
-    };
-    try dwarf.open(allocator);
-    return .{
-        .allocator = allocator,
-        .elf_module = .{
-            .base_address = 0,
-            .dwarf = dwarf,
-            .mapped_memory = undefined,
-            .external_mapped_memory = undefined,
-        },
-    };
+    return .{ .allocator = allocator, .dwarf = dwarf };
 }
 
 pub fn deinit(self: *DebugInfo) void {
-    self.elf_module.dwarf.deinit(self.allocator);
-
+    self.dwarf.deinit(self.allocator);
     self.* = undefined;
 }
 
+const FrameIterator = struct {
+    ra: usize,
+    fp: usize,
+    first: bool = true,
+
+    fn init(return_address: usize, frame_address: usize) @This() {
+        return .{ .ra = return_address, .fp = frame_address };
+    }
+
+    fn next(self: *@This()) ?usize {
+        if (self.first) {
+            self.first = false;
+            return self.ra;
+        }
+        if (self.fp < 16) return null;
+        const saved_ra = @as(*const usize, @ptrFromInt(self.fp - @sizeOf(usize))).*;
+        const saved_fp = @as(*const usize, @ptrFromInt(self.fp - 2 * @sizeOf(usize))).*;
+        if (saved_ra == 0 or saved_fp == 0 or saved_fp >= self.fp) return null;
+        self.ra = saved_ra;
+        self.fp = saved_fp;
+        return saved_ra;
+    }
+};
+
 pub fn printStackTrace(self: *DebugInfo, writer: anytype, return_address: usize, frame_address: usize) !void {
-    var it = std.debug.StackIterator.init(return_address, frame_address);
-    defer it.deinit();
-
+    var it = FrameIterator.init(return_address, frame_address);
     while (it.next()) |address| {
-        const symbol = try self.elf_module.getSymbolAtAddress(self.allocator, address);
-        defer if (symbol.source_location) |sl| self.allocator.free(sl.file_name);
+        const sym_name = self.dwarf.getSymbolName(address) orelse "???";
 
-        try printLineInfo(
-            writer,
-            symbol.source_location,
-            address,
-            symbol.name,
-            symbol.compile_unit_name,
-            .escape_codes,
-        );
+        const cu = self.dwarf.findCompileUnit(endian, address) catch {
+            try printLineInfo(writer, null, address, sym_name, "???");
+            continue;
+        };
+
+        if (cu.src_loc_cache == null) {
+            self.dwarf.populateSrcLocCache(self.allocator, endian, cu) catch {
+                try printLineInfo(writer, null, address, sym_name, "???");
+                continue;
+            };
+        }
+
+        const cu_name = cu.die.getAttrString(&self.dwarf, endian, DW.AT.name, self.dwarf.section(.debug_str), cu) catch "???";
+
+        const src_loc: ?std.debug.SourceLocation = blk: {
+            const cache = &cu.src_loc_cache.?;
+            const le = cache.findSource(address) catch break :blk null;
+            if (le.isInvalid()) break :blk null;
+            const file_idx = le.file - @intFromBool(cache.version < 5);
+            if (file_idx >= cache.files.len) break :blk null;
+            break :blk .{
+                .file_name = cache.files[file_idx].path,
+                .line = le.line,
+                .column = le.column,
+            };
+        };
+
+        try printLineInfo(writer, src_loc, address, sym_name, cu_name);
     }
 }
 
@@ -154,12 +161,7 @@ fn printLineInfo(
     address: usize,
     symbol_name: []const u8,
     compile_unit_name: []const u8,
-    tty_config: std.io.tty.Config,
 ) !void {
-    var buf: [0]u8 = .{};
-    var writer_adapter = out_stream.adaptToNewApi(&buf);
-    try tty_config.setColor(&writer_adapter.new_interface, .bold);
-
     if (source_location) |*sl| {
         try out_stream.print("{s}:{d}:{d}\n", .{ sl.file_name, sl.line, sl.column });
 
@@ -170,15 +172,11 @@ fn printLineInfo(
                 return;
             }
         }
-        try out_stream.print("(source file {s} not added in std/debug.zig)\n", .{source_location.?.file_name});
+        try out_stream.print("(source file {s} not embedded)\n", .{source_location.?.file_name});
     } else {
         try out_stream.writeAll("???:?:?");
     }
 
-    try tty_config.setColor(&writer_adapter.new_interface, .reset);
     try out_stream.writeAll(": ");
-    try tty_config.setColor(&writer_adapter.new_interface, .dim);
-    try out_stream.print("0x{x} in {s} ({s})", .{ address, symbol_name, compile_unit_name });
-    try tty_config.setColor(&writer_adapter.new_interface, .reset);
-    try out_stream.writeAll("\n");
+    try out_stream.print("0x{x} in {s} ({s})\n", .{ address, symbol_name, compile_unit_name });
 }
