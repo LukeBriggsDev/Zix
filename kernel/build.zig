@@ -62,6 +62,14 @@ pub fn build(b: *std.Build) void {
     module_proc.addImport("arch", module_arch);
     module_proc.addImport("mem", module_mem);
 
+    const module_syscall = b.addModule("syscall", .{
+        .root_source_file = b.path("src/syscall/syscall.zig"),
+        .target = target,
+    });
+
+    module_syscall.addImport("arch", module_arch);
+    module_syscall.addImport("proc", module_proc);
+
     // Kernel
     const kernel_mod = b.createModule(.{
         .root_source_file = b.path("src/kernel.zig"),

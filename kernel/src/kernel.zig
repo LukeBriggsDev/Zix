@@ -4,6 +4,7 @@ const builtin = @import("builtin");
 const arch = @import("arch").internals;
 const io = @import("io");
 const debug = @import("debug.zig");
+const syscall = @import("syscall");
 pub const mem = @import("mem");
 const proc = @import("proc");
 const testing = @import("testing.zig");
@@ -81,6 +82,8 @@ export fn kmain() noreturn {
     proc.init(allocator) catch {
         unreachable;
     };
+
+    syscall.init();
 
     _ = proc.Process.init(allocator, shell_embed.data) catch {
         unreachable;

@@ -1,6 +1,7 @@
 //! Methods relating to Control Status Registers
 const std = @import("std");
 const sbi = @import("sbi.zig");
+const SyscallHandler = @import("../arch.zig").SyscallHandler;
 
 const ControlStatusRegister = enum {
     sstatus,
@@ -19,6 +20,7 @@ const ControlStatusRegister = enum {
 
 const syscall_no = enum(isize) {
     putchar = 1,
+    getchar = 2,
 };
 
 const scause_value = enum(usize) {
@@ -171,18 +173,19 @@ fn exception_entry() align(8) callconv(.naked) void {
     );
 }
 
+var syscall_handler: ?SyscallHandler = null;
+
+pub fn set_syscall_handler(h: SyscallHandler) void {
+    syscall_handler = h;
+}
+
 fn handle_syscall(frame: *TrapFrame) void {
-    // Switch on syscall number register
-    switch (frame.a3) {
-        @intFromEnum(syscall_no.putchar) => {
-            const char = std.math.cast(u8, frame.a0) orelse @panic("Number larger than u8 passed to putchar");
-            _ = sbi.sbi_putchar(char);
-        },
-        else => {
-            std.log.err("Syscall = {x}", .{frame.a3});
-            @panic("unexpected syscall");
-        },
-    }
+    const handler = syscall_handler orelse @panic("Syscall handler not registered");
+    const args = [6]usize{
+        frame.a0, frame.a1, frame.a2, frame.a4, frame.a5, frame.a6,
+    };
+
+    frame.a0 = handler(frame.a3, args);
 }
 
 /// Trap handler

@@ -6,6 +6,7 @@ const stack_top = @extern([*]u8, .{
 
 pub const syscall_no = enum(isize) {
     putchar = 1,
+    getchar = 2,
 };
 
 export fn exit() noreturn {
@@ -23,13 +24,13 @@ export fn start() linksection(".text.start") callconv(.naked) void {
 }
 
 pub fn syscall(
-    sysno: isize,
-    arg0: isize,
-    arg1: isize,
-    arg2: isize,
-) isize {
+    sysno: usize,
+    arg0: usize,
+    arg1: usize,
+    arg2: usize,
+) usize {
     return asm volatile ("ecall"
-        : [ret] "={a0}" (-> isize),
+        : [ret] "={a0}" (-> usize),
         : [arg0] "{a0}" (arg0),
           [arg1] "{a1}" (arg1),
           [arg2] "{a2}" (arg2),
@@ -59,7 +60,16 @@ pub const SerialWriter = struct {
 };
 
 pub fn putchar(c: u8) void {
-    _ = syscall(@intFromEnum(syscall_no.putchar), @as(isize, c), 0, 0);
+    _ = syscall(@intFromEnum(syscall_no.putchar), @intCast(c), 0, 0);
+}
+
+pub fn getchar() u8 {
+    const ret = syscall(@intFromEnum(syscall_no.getchar), 0, 0, 0);
+    if (ret > std.math.maxInt(u8)) {
+        @panic("Received bad character from getchar");
+    }
+
+    return @intCast(ret);
 }
 
 /// Error enum for print functions

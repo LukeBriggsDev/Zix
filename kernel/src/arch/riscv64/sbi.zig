@@ -2,7 +2,7 @@
 
 /// List of SBI error values as defined in the SBI spec:
 /// Chapter 3: Binary Encoding.
-pub const SBIErrorCode = enum(i32) {
+pub const SBIErrorCode = enum(isize) {
     SBI_SUCCESS = 0,
     SBI_ERR_FAILED = -1,
     SBI_ERR_NOT_SUPPORTED = -2,
