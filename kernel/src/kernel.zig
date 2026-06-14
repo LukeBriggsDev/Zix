@@ -37,11 +37,18 @@ const __stack_top = @extern([*]u8, .{
 const shell_embed = @import("shell_embed");
 
 var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
+var panicking: bool = false;
 
 pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?usize) noreturn {
     _ = stack_trace;
     std.log.err("\n!!!!!!!!!!!!\nKERNEL PANIC\n!!!!!!!!!!!!", .{});
     std.log.err("panic: {s}\n", .{message});
+
+    if (panicking) {
+        std.log.err("panic: double panic, hanging\n", .{});
+        hang();
+    }
+    panicking = true;
 
     var debug_allocator = std.heap.FixedBufferAllocator.init(&debug_allocator_bytes);
 
@@ -85,15 +92,17 @@ export fn kmain() noreturn {
 
     syscall.init();
 
-    _ = proc.Process.init(allocator, shell_embed.data) catch {
-        unreachable;
-    };
+    @panic("AAAH");
 
-    proc.yield();
+    //_ = proc.Process.init(allocator, shell_embed.data) catch {
+    //    unreachable;
+    //};
+
+    //proc.yield();
 
     //@panic("Switched to idle process");
 
-    arch.shutdown();
+    //@panic("test stack trace");
 }
 
 /// Main entry point for the kernel from the SBI

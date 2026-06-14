@@ -41,23 +41,30 @@ pub fn build(b: *std.Build) void {
     const module_arch = b.addModule("arch", .{
         .root_source_file = b.path("src/arch/arch.zig"),
         .target = target,
+        .optimize = .Debug,
+        .omit_frame_pointer = false,
     });
 
     const module_io = b.addModule("io", .{
         .root_source_file = b.path("src/io/io.zig"),
         .target = target,
+        .optimize = .Debug,
+        .omit_frame_pointer = false,
     });
     module_io.addImport("arch", module_arch);
 
     const module_mem = b.addModule("mem", .{
         .root_source_file = b.path("src/mem/mem.zig"),
         .target = target,
+        .optimize = .Debug,
+        .omit_frame_pointer = false,
     });
 
     const module_proc = b.addModule("proc", .{
         .root_source_file = b.path("src/proc/process.zig"),
         .target = target,
         .optimize = .Debug,
+        .omit_frame_pointer = false,
     });
     module_proc.addImport("arch", module_arch);
     module_proc.addImport("mem", module_mem);
@@ -65,6 +72,8 @@ pub fn build(b: *std.Build) void {
     const module_syscall = b.addModule("syscall", .{
         .root_source_file = b.path("src/syscall/syscall.zig"),
         .target = target,
+        .optimize = .Debug,
+        .omit_frame_pointer = false,
     });
 
     module_syscall.addImport("arch", module_arch);
@@ -75,6 +84,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/kernel.zig"),
         .target = target,
         .optimize = .Debug,
+        .omit_frame_pointer = false,
         .code_model = .medium,
     });
     const kernel = b.addExecutable(.{
