@@ -39,8 +39,9 @@ const shell_embed = @import("shell_embed");
 var debug_allocator_bytes: [16 * 1024 * 1024]u8 = undefined; // 16 MB
 var panicking: bool = false;
 
-pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?usize) noreturn {
-    _ = stack_trace;
+pub const panic = std.debug.FullPanic(panic_impl);
+
+fn panic_impl(message: []const u8, ra: ?usize) noreturn {
     std.log.err("\n!!!!!!!!!!!!\nKERNEL PANIC\n!!!!!!!!!!!!", .{});
     std.log.err("panic: {s}\n", .{message});
 
@@ -59,7 +60,8 @@ pub fn panic(message: []const u8, stack_trace: ?*std.builtin.StackTrace, ra: ?us
 
     defer debug_info.deinit();
 
-    debug_info.printStackTrace(io.TTY.writer, ra orelse @returnAddress(), @frameAddress()) catch |err| {
+    const caller_fp = @as(*const usize, @ptrFromInt(@frameAddress() - 2 * @sizeOf(usize))).*;
+    debug_info.printStackTrace(io.TTY.writer, ra orelse @returnAddress(), caller_fp) catch |err| {
         std.log.err("panic: stacktrace err = {}", .{err});
     };
 
