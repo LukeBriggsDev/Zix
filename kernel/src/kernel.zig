@@ -94,17 +94,13 @@ export fn kmain() noreturn {
 
     syscall.init();
 
-    @panic("AAAH");
+    _ = proc.Process.init(allocator, shell_embed.data) catch {
+        unreachable;
+    };
 
-    //_ = proc.Process.init(allocator, shell_embed.data) catch {
-    //    unreachable;
-    //};
+    proc.yield();
 
-    //proc.yield();
-
-    //@panic("Switched to idle process");
-
-    //@panic("test stack trace");
+    @panic("Switched to idle process");
 }
 
 /// Main entry point for the kernel from the SBI
