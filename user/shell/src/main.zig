@@ -1,4 +1,5 @@
 const zixlib = @import("zixlib");
+const std = @import("std");
 
 export fn main() void {
     var w = zixlib.SerialWriter{};
@@ -8,9 +9,7 @@ export fn main() void {
         unreachable;
     };
 
-    const c = zixlib.getchar();
-
-    _ = writer.write(&[_]u8{c}) catch {
+    _ = writer.write("\nDone\n") catch {
         unreachable;
     };
 }

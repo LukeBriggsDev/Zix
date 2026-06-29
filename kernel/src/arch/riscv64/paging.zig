@@ -48,14 +48,17 @@ const VirtualAddress = packed struct {
     vpn2: u9,
 };
 
+/// Maps a virtual page to a physical page according to SV39
 pub fn map_page(allocator: std.mem.Allocator, root_table: []usize, vaddr: usize, paddr: usize, flags: usize) void {
     const flags_entry: PageEntry = @bitCast(flags);
     var table2: [*]PageEntry = @ptrCast(root_table);
 
+    // Virtual address must be page aligned
     if (vaddr % std.heap.pageSize() != 0) {
         std.debug.panic("Unaligned vaddr 0x{x}", .{vaddr});
     }
 
+    // Physical address must be page aligned
     if (paddr % std.heap.pageSize() != 0) {
         std.debug.panic("Unaligned paddr 0x{x}", .{paddr});
     }
@@ -73,7 +76,7 @@ pub fn map_page(allocator: std.mem.Allocator, root_table: []usize, vaddr: usize,
 
     const levels = [_]u9{ virtual_addr.vpn1, virtual_addr.vpn0 };
     for (levels) |vpn| {
-        if (!v.valid) {
+        if (!v.valid) { // Next level page table does not exist
             // Allocate a zeroed page for the next-level table
             const new_page = allocator.alloc(u64, std.heap.pageSize() / @sizeOf(u64)) catch |err| {
                 std.debug.panic("Out of memory! Cannot map page! {}", .{err});

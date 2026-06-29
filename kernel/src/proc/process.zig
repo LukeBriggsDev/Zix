@@ -1,3 +1,4 @@
+///! Process related functionality
 const std = @import("std");
 const assert = std.debug.assert;
 const builtin = @import("builtin");
@@ -32,7 +33,8 @@ const ProcessState = enum {
     runnable,
 };
 
-fn processFromNode(node: *ProcessNode) *Process {
+/// Retrieve the Node in the linked list corresponding to the Process Pointer
+fn process_from_node(node: *ProcessNode) *Process {
     return @fieldParentPtr("node", node);
 }
 
@@ -44,7 +46,7 @@ pub fn yield() void {
         return;
     }
 
-    const next_proc = processFromNode(next);
+    const next_proc = process_from_node(next);
 
     // Store pointer to bottom of kernel stack
     asm volatile (
@@ -53,18 +55,19 @@ pub fn yield() void {
         \\sfence.vma
         \\csrw sscratch, %[sscratch]
         :
-        : [satp] "r" (satp_sv39 | (@intFromPtr(processFromNode(next).page_table.ptr) / std.heap.pageSize())),
+        : [satp] "r" (satp_sv39 | (@intFromPtr(process_from_node(next).page_table.ptr) / std.heap.pageSize())),
           [sscratch] "r" (@intFromPtr(&next_proc.stack) + next_proc.stack.len),
     );
 
     const prev_node: *ProcessNode = current_process;
     current_process = next;
 
-    const prev_proc = processFromNode(prev_node);
-    const curr_proc = processFromNode(current_process);
+    const prev_proc = process_from_node(prev_node);
+    const curr_proc = process_from_node(current_process);
     arch.switch_context(&prev_proc.stack_pointer, &curr_proc.stack_pointer);
 }
 
+/// Entry point for user space
 export fn user_entry() callconv(.naked) void {
     asm volatile (
         \\csrw sepc, %[sepc]
@@ -166,7 +169,7 @@ export fn process_exit() noreturn {
     else
         proc_list.first.?.next orelse proc_list.first.?; // prefer first non-idle
 
-    const next_proc = processFromNode(next);
+    const next_proc = process_from_node(next);
     asm volatile (
         \\csrw sscratch, %[sscratch]
         :
@@ -215,9 +218,9 @@ test "Context switch 20 times" {
     };
 
     std.log.info("Initialized process idle", .{});
-    std.log.info("PID: {}", .{processFromNode(proc_list.first.?).id});
+    std.log.info("PID: {}", .{process_from_node(proc_list.first.?).id});
     assert(proc_list.len() == 1);
-    assert(processFromNode(current_process).id == 0);
+    assert(process_from_node(current_process).id == 0);
 
     const process_a = try Process.init(mem.kernel_page_allocator, &test_funcs.proc_a_entry);
     _ = process_a;

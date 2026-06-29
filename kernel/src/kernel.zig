@@ -1,3 +1,5 @@
+//! Main entry point for kernel
+
 const std = @import("std");
 
 const builtin = @import("builtin");
@@ -16,6 +18,7 @@ pub const std_options: std.Options = .{
     .logFn = logFn,
 };
 
+/// Log function assigned in `std_options`
 pub fn logFn(comptime level: std.log.Level, comptime scope: @EnumLiteral(), comptime format: []const u8, args: anytype) void {
     const prefix = "[" ++ comptime level.asText() ++ "] " ++ "<" ++ @tagName(scope) ++ "> ";
 
@@ -41,6 +44,7 @@ var panicking: bool = false;
 
 pub const panic = std.debug.FullPanic(panic_impl);
 
+/// Implementation of panicking to allow for panic info
 fn panic_impl(message: []const u8, ra: ?usize) noreturn {
     std.log.err("\n!!!!!!!!!!!!\nKERNEL PANIC\n!!!!!!!!!!!!", .{});
     std.log.err("panic: {s}\n", .{message});
@@ -68,6 +72,7 @@ fn panic_impl(message: []const u8, ra: ?usize) noreturn {
     hang();
 }
 
+/// Infinite hang for debugging
 fn hang() noreturn {
     while (true) {}
 }

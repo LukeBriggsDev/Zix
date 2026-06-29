@@ -4,7 +4,7 @@ const sbi = @import("sbi.zig");
 const std = @import("std");
 const proc = @import("proc");
 
-// Writer
+/// Writer drain
 fn drain(_: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
     var written: usize = 0;
     for (data, 0..) |slice, i| {
@@ -32,8 +32,7 @@ pub const PrintError = error{
     GENERIC_PRINT_ERROR,
 };
 
-// Reader
-
+/// Attempt to read byte from serial
 pub fn try_read_byte() ?u8 {
     const code = @intFromEnum(sbi.sbi_getchar());
     return if (code < 0) null else @intCast(code);

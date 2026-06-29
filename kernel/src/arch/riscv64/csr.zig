@@ -46,6 +46,7 @@ fn read_csr(comptime reg: ControlStatusRegister) usize {
     return val;
 }
 
+/// Stores all register values when a trap is triggered
 const TrapFrame = packed struct {
     ra: u64,
     sp: u64,

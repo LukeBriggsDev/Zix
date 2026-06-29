@@ -20,6 +20,8 @@ pub const arch = Arch{
     .set_syscall_handler = csr.set_syscall_handler,
 };
 
+/// RISCV initialization, include:
+/// - Initialize CSR to exception handler
 pub fn init() void {
     csr.init();
 }

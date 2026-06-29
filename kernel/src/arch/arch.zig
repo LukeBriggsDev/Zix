@@ -7,6 +7,8 @@ pub const internals: Arch = switch (builtin.cpu.arch) {
     .riscv64 => @import("riscv64/arch.zig").arch,
     else => unreachable,
 };
+
+/// Base type for syscall handlers
 pub const SyscallHandler = *const fn (no: usize, args: [6]usize) usize;
 
 /// Arch structure containing generic fields that architectures should expose
@@ -33,5 +35,6 @@ pub const Arch = struct {
         paddr: usize,
         flags: usize,
     ) void,
+    /// Architecture specific method to register a syscall handler (see syscall/syscall.zig for usage)
     set_syscall_handler: *const fn (h: SyscallHandler) void,
 };

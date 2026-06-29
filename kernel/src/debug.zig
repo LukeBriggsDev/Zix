@@ -1,3 +1,5 @@
+//! Provides Dwarf debug parsing logic to allow for self-generated stack-traces
+
 const std = @import("std");
 const builtin = @import("builtin");
 const DW = std.dwarf;
@@ -49,10 +51,10 @@ const endian = builtin.target.cpu.arch.endian();
 pub fn init(allocator: std.mem.Allocator, symbols: Symbols) !DebugInfo {
     const Sid = std.debug.Dwarf.Section.Id;
     var sections: std.debug.Dwarf.SectionArray = @splat(null);
-    sections[@intFromEnum(Sid.debug_info)]   = .{ .data = symbols.section(.debug_info),   .owned = false };
+    sections[@intFromEnum(Sid.debug_info)] = .{ .data = symbols.section(.debug_info), .owned = false };
     sections[@intFromEnum(Sid.debug_abbrev)] = .{ .data = symbols.section(.debug_abbrev), .owned = false };
-    sections[@intFromEnum(Sid.debug_str)]    = .{ .data = symbols.section(.debug_str),    .owned = false };
-    sections[@intFromEnum(Sid.debug_line)]   = .{ .data = symbols.section(.debug_line),   .owned = false };
+    sections[@intFromEnum(Sid.debug_str)] = .{ .data = symbols.section(.debug_str), .owned = false };
+    sections[@intFromEnum(Sid.debug_line)] = .{ .data = symbols.section(.debug_line), .owned = false };
     sections[@intFromEnum(Sid.debug_ranges)] = .{ .data = symbols.section(.debug_ranges), .owned = false };
     var dwarf: std.debug.Dwarf = .{ .sections = sections };
     try dwarf.open(allocator, endian);
@@ -64,7 +66,7 @@ pub fn deinit(self: *DebugInfo) void {
     self.* = undefined;
 }
 
-// ── Stack trace printing ──────────────────────────────────────────────────────
+// Stack trace printing
 
 const FrameIterator = struct {
     ra: usize,
